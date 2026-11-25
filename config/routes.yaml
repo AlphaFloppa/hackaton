@@ -1,0 +1,150 @@
+# Все маршруты API v1 (перенесены из PHP-атрибутов).
+# Формат контроллера: FQCN::method
+
+# ── Продавец (S) ────────────────────────────────────────────────────────────
+
+# Создать товар (вес, объём); без Idempotency-Key по спеке
+app.items_create:
+    path: /api/v1/items
+    controller: App\Controller\CatalogController::create
+    methods: POST
+
+# Где лежит товар: остатки партий по ПВЗ
+app.items_batches:
+    path: /api/v1/items/{id}/batches
+    controller: App\Controller\CatalogController::batches
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Создать заказ: item_id, qty, target_pvz_id, preference COST|TIME; зовёт модуль маршрутизации
+app.orders_create:
+    path: /api/v1/orders
+    controller: App\Controller\OrderController::create
+    methods: POST
+
+# Заказ целиком: статус, решение маршрута, сегменты, расчёт экономики
+app.orders_get:
+    path: /api/v1/orders/{id}
+    controller: App\Controller\OrderController::get
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# ── ПВЗ (P) ─────────────────────────────────────────────────────────────────
+
+# Приёмка партии на ПВЗ (идемпотентно через Idempotency-Key)
+app.pvz_intake:
+    path: /api/v1/pvz/{pvzId}/intake
+    controller: App\Controller\PvzController::intake
+    methods: POST
+    requirements:
+        pvzId: '[0-9a-f-]{36}'
+
+# Остатки и загрузка ПВЗ (вместимость, партии)
+app.pvz_stock:
+    path: /api/v1/pvz/{pvzId}/stock
+    controller: App\Controller\PvzController::stock
+    methods: GET
+    requirements:
+        pvzId: '[0-9a-f-]{36}'
+
+# Начисление хранения за прошедшие дни (сценарий «длительное хранение»)
+app.pvz_storage_accrue:
+    path: /api/v1/pvz/{pvzId}/storage/accrue
+    controller: App\Controller\PvzController::accrueStorage
+    methods: POST
+    requirements:
+        pvzId: '[0-9a-f-]{36}'
+
+# Сборка заказа: RESERVE на партии + проводка FEE_ASSEMBLY (идемпотентно)
+app.order_assemble:
+    path: /api/v1/orders/{id}/assemble
+    controller: App\Controller\OrderOpsController::assemble
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Выдача покупателю: COMMIT резерва + проводка FEE_ISSUE (идемпотентно)
+app.order_issue:
+    path: /api/v1/orders/{id}/issue
+    controller: App\Controller\OrderOpsController::issue
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Возврат заказа: RELEASE резерва / REFUND + уведомление (идемпотентно)
+app.order_return:
+    path: /api/v1/orders/{id}/return
+    controller: App\Controller\OrderOpsController::returnOrder
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Зафиксировать логистическую ошибку (инцидент)
+app.incidents_create:
+    path: /api/v1/incidents
+    controller: App\Controller\IncidentController::create
+    methods: POST
+
+# Уведомления ПВЗ (долгое хранение, ошибки); фильтр ?pvz_id=
+app.notifications_list:
+    path: /api/v1/notifications
+    controller: App\Controller\NotificationController::list
+    methods: GET
+
+# Отметить все уведомления прочитанными
+app.notifications_read_all:
+    path: /api/v1/notifications/read-all
+    controller: App\Controller\NotificationController::readAll
+    methods: POST
+
+# ── Аналитика ───────────────────────────────────────────────────────────────
+
+# Аналитика продавца: стоимость, прибыль, base vs mesh
+app.analytics_seller:
+    path: /api/v1/analytics/seller/{id}
+    controller: App\Controller\AnalyticsController::seller
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Аналитика ПВЗ: сборы, заказы, хранение
+app.analytics_pvz:
+    path: /api/v1/analytics/pvz/{id}
+    controller: App\Controller\AnalyticsController::pvz
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# ── Внутреннее / заглушки (Sys) ─────────────────────────────────────────────
+
+# STUB: обработка на хабе (ASSEMBLED -> IN_TRANSIT, фиксированное допущение)
+app.stub_hub_handle:
+    path: /api/v1/stub/hub/handle
+    controller: App\Controller\StubController::hubHandle
+    methods: POST
+
+# STUB: магистраль (IN_TRANSIT -> DELIVERED_TO_PVZ, cost = kg × км × 0.05₽)
+app.stub_trunk_move:
+    path: /api/v1/stub/trunk/move
+    controller: App\Controller\StubController::trunkMove
+    methods: POST
+
+# Сдвиг тестового времени на N часов (сценарий 5)
+app.system_time_advance:
+    path: /api/v1/system/time/advance
+    controller: App\Controller\SystemController::timeAdvance
+    methods: POST
+
+# Сброс тестового времени на реальное
+app.system_time_reset:
+    path: /api/v1/system/time/reset
+    controller: App\Controller\SystemController::timeReset
+    methods: POST
+
+# Healthcheck для Docker (проверяет доступность БД)
+app.health:
+    path: /api/v1/health
+    controller: App\Controller\SystemController::health
+    methods: GET
