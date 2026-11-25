@@ -1,0 +1,1948 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Mesh-ПВЗ · MVP</title>
+    <style>
+      :root {
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        --bg: #f3f0fb;
+        --sf: #fff;
+        --tx: #1b1233;
+        --mu: #6a6188;
+        --bd: #ded7f2;
+        --ac: #6d28d9;
+        --ac2: #d61f8c;
+        --ok: #0f7a55;
+        --wn: #a85a00;
+        --er: #c4183f;
+        --sf2: #ece7fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --bg: #120c22;
+          --sf: #1c1432;
+          --tx: #efeaff;
+          --mu: #a094c4;
+          --bd: #34284f;
+          --ac: #a78bfa;
+          --ac2: #f472b6;
+          --ok: #4ade80;
+          --wn: #fbbf24;
+          --er: #fb7185;
+          --sf2: #261b42;
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #120c22;
+        --sf: #1c1432;
+        --tx: #efeaff;
+        --mu: #a094c4;
+        --bd: #34284f;
+        --ac: #a78bfa;
+        --ac2: #f472b6;
+        --ok: #4ade80;
+        --wn: #fbbf24;
+        --er: #fb7185;
+        --sf2: #261b42;
+      }
+      html {
+        scroll-padding-top: env(safe-area-inset-top, 0px);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--tx);
+        font:
+          15px/1.5 Onest,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+      }
+      header {
+        position: sticky;
+        top: env(safe-area-inset-top, 0px);
+        z-index: 5;
+        background: var(--sf);
+        border-bottom: 1px solid var(--bd);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+        align-items: center;
+        padding: 10px 16px;
+      }
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0 0 auto;
+        height: env(safe-area-inset-top, 0px);
+        background: var(--sf);
+        z-index: 6;
+      }
+      .brand {
+        font-weight: 800;
+        font-size: 18px;
+        letter-spacing: -0.02em;
+      }
+      .brand i {
+        font-style: normal;
+        color: var(--ac2);
+      }
+      .seg {
+        display: flex;
+        background: var(--sf2);
+        border-radius: 10px;
+        padding: 3px;
+      }
+      .seg button {
+        border: 0;
+        background: none;
+        color: var(--mu);
+        font: inherit;
+        font-weight: 700;
+        padding: 6px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .seg button.on {
+        background: var(--ac);
+        color: #fff;
+      }
+      button,
+      select,
+      input {
+        font: inherit;
+        color: var(--tx);
+      }
+      .b {
+        border: 1px solid var(--bd);
+        background: var(--sf);
+        border-radius: 9px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      .b:hover {
+        border-color: var(--ac);
+      }
+      .b.p {
+        background: var(--ac);
+        border-color: var(--ac);
+        color: #fff;
+        font-weight: 700;
+      }
+      .b.d {
+        color: var(--er);
+      }
+      button:focus-visible,
+      select:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--ac2);
+        outline-offset: 2px;
+      }
+      .sp {
+        flex: 1;
+      }
+      .clock {
+        font-variant-numeric: tabular-nums;
+        color: var(--mu);
+        font-size: 13px;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid var(--bd);
+        margin-bottom: 16px;
+        overflow-x: auto;
+      }
+      .tabs button {
+        border: 0;
+        background: none;
+        padding: 8px 14px;
+        color: var(--mu);
+        font-weight: 700;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+        white-space: nowrap;
+      }
+      .tabs button.on {
+        color: var(--tx);
+        border-color: var(--ac2);
+      }
+      .g {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+      .c {
+        background: var(--sf);
+        border: 1px solid var(--bd);
+        border-radius: 14px;
+        padding: 14px;
+      }
+      .c h3 {
+        margin: 0 0 8px;
+        font-size: 16px;
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 20px;
+        letter-spacing: -0.01em;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: end;
+        margin-bottom: 10px;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 12px;
+        color: var(--mu);
+        font-weight: 500;
+      }
+      select,
+      input {
+        background: var(--bg);
+        border: 1px solid var(--bd);
+        border-radius: 8px;
+        padding: 7px 9px;
+        min-width: 90px;
+      }
+      .tw {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      th {
+        text-align: left;
+        color: var(--mu);
+        font-weight: 500;
+        font-size: 12px;
+      }
+      td,
+      th {
+        padding: 7px 8px;
+        border-bottom: 1px solid var(--bd);
+        vertical-align: middle;
+      }
+      .chip {
+        display: inline-block;
+        padding: 1px 9px;
+        border-radius: 99px;
+        font-size: 12px;
+        font-weight: 700;
+        background: var(--sf2);
+        color: var(--mu);
+        white-space: nowrap;
+      }
+      .chip.ok {
+        color: var(--ok);
+      }
+      .chip.wn {
+        color: var(--wn);
+      }
+      .chip.er {
+        color: var(--er);
+      }
+      .chip.ac {
+        background: var(--ac);
+        color: #fff;
+      }
+      .stub {
+        border: 1px dashed var(--wn);
+        color: var(--wn);
+        background: none;
+      }
+      .big {
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .mu {
+        color: var(--mu);
+        font-size: 13px;
+      }
+      .bar {
+        height: 9px;
+        background: var(--sf2);
+        border-radius: 9px;
+        overflow: hidden;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, var(--ac), var(--ac2));
+      }
+      .v {
+        border: 2px solid var(--bd);
+        border-radius: 14px;
+        padding: 14px;
+        background: var(--sf);
+      }
+      .v.win {
+        border-color: var(--ac2);
+      }
+      .v.no {
+        opacity: 0.55;
+      }
+      .route {
+        display: flex;
+        align-items: flex-start;
+        margin: 12px 0 4px;
+        overflow-x: auto;
+        padding-bottom: 6px;
+      }
+      .nd {
+        min-width: 84px;
+        text-align: center;
+        font-size: 12px;
+        position: relative;
+      }
+      .nd::before {
+        content: '';
+        display: block;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--ac);
+        margin: 0 auto 4px;
+        position: relative;
+        z-index: 1;
+      }
+      .nd.h::before {
+        background: none;
+        border: 3px dashed var(--wn);
+      }
+      .nd.e::before {
+        background: var(--ac2);
+      }
+      .nd:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        width: 100%;
+        height: 3px;
+        background: var(--bd);
+      }
+      .nd small {
+        display: block;
+        color: var(--mu);
+      }
+      .msg {
+        padding: 9px 12px;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        background: var(--sf2);
+        font-weight: 500;
+      }
+      .msg.er {
+        color: var(--er);
+      }
+      .msg.ok {
+        color: var(--ok);
+      }
+      .con {
+        margin-top: 20px;
+        background: var(--sf);
+        border: 1px solid var(--bd);
+        border-radius: 14px;
+        padding: 10px 14px;
+      }
+      .con summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+      .cov {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin: 10px 0;
+      }
+      .cov span {
+        font:
+          11px ui-monospace,
+          Menlo,
+          monospace;
+        padding: 2px 7px;
+        border-radius: 6px;
+        border: 1px solid var(--bd);
+        color: var(--mu);
+      }
+      .cov span.on {
+        background: var(--ok);
+        border-color: var(--ok);
+        color: #fff;
+      }
+      .lg {
+        font:
+          12px/1.6 ui-monospace,
+          Menlo,
+          monospace;
+        max-height: 220px;
+        overflow: auto;
+        color: var(--mu);
+      }
+      .lg b.e {
+        color: var(--er);
+      }
+      .lg b.k {
+        color: var(--ok);
+      }
+      .st {
+        display: flex;
+        gap: 8px;
+        padding: 5px 0;
+        border-bottom: 1px solid var(--bd);
+        font-size: 14px;
+      }
+      .st .m {
+        width: 20px;
+        font-weight: 800;
+      }
+      .ok-t {
+        color: var(--ok);
+      }
+      .er-t {
+        color: var(--er);
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .bar i {
+          transition: width 0.4s;
+        }
+      }
+      .order-financials {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 25px;
+      }
+      .order-financials dt {
+        color: var(--mu);
+        font-size: 13px;
+      }
+      .order-financials dd {
+        margin: 3px 0 0;
+        font-weight: 700;
+      }
+      .workspace-heading {
+        margin: 12px 0 24px;
+      }
+      .workspace-heading h1 {
+        font-size: clamp(28px, 5vw, 42px);
+        line-height: 1.1;
+        margin: 0 0 8px;
+      }
+      .workspace-heading p {
+        margin: 0;
+      }
+      .screen-tag {
+        margin-bottom: 8px;
+      }
+      .c {
+        min-width: 0;
+      }
+      .route {
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 600px) {
+        header {
+          position: static;
+        }
+        header .sp {
+          display: none;
+        }
+        .seg {
+          max-width: 100%;
+        }
+        .seg button {
+          padding-inline: 9px;
+        }
+        main {
+          padding: 12px;
+        }
+        .tw {
+          overflow-x: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">Mesh<i>·</i>ПВЗ</div>
+      <div class="seg" id="roles"></div>
+      <span class="chip stub" title="Хаб, магистраль, покупатель, платёжный шлюз"
+        >заглушки: хаб · магистраль · покупатель</span
+      >
+      <div class="sp"></div>
+      <span class="clock" id="clock"></span>
+      <button class="b" data-a="adv" data-d="1">+1 день</button
+      ><button class="b" data-a="adv" data-d="10">+10 дней</button>
+      <button class="b d" data-a="reset">Сброс демо</button>
+    </header>
+    <main>
+      <div id="msg" role="status" aria-live="polite"></div>
+      <div id="app"></div>
+      <details class="con">
+        <summary id="csum"></summary>
+        <div class="cov" id="cov"></div>
+        <div class="lg" id="lg"></div>
+        <div class="row" style="margin: 10px 0 0">
+          <button class="b" data-a="nokey">Тест: POST без Idempotency-Key</button
+          ><button class="b" data-a="health">GET /health</button>
+        </div>
+      </details>
+      <p class="mu">
+        Тарифы и пороги в демо — допущение, не тариф RWB. Покупатель, оплата, хаб и магистраль в
+        демо представлены заглушками.
+      </p>
+    </main>
+    <script>
+      const uid = () => {
+          const bytes = crypto.getRandomValues(new Uint8Array(16));
+          bytes[6] = (bytes[6] & 15) | 64;
+          bytes[8] = (bytes[8] & 63) | 128;
+          const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+          return hex.replace(/^(........)(....)(....)(....)(............)$/, '$1-$2-$3-$4-$5');
+        },
+        sh = (i) => (i ? String(i).slice(0, 8) : '—');
+      const rub = (n) =>
+        (Math.round(n * 100) / 100).toLocaleString('ru-RU', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }) + ' ₽';
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"]/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+        );
+      const $ = (s) => document.querySelector(s),
+        T0 = Date.parse('2026-11-25T10:00:00Z'),
+        DAY = 864e5;
+      let DB,
+        UI = {
+          role: 'S',
+          pvz: null,
+          tab: { S: 'order', P: 'orders', X: 'run' },
+          log: [],
+          used: new Set(),
+          f: { qty: 2, intakeQty: 2, pref: 'COST' },
+          itemDraft: { name: '', kg: '0.3', vol: '0.003', price: '900', cogs: '' },
+          q: null,
+          sel: null,
+          keys: {},
+          scen: null,
+          msg: null,
+        };
+      function setBusy(value) {
+        busy = value;
+        $('#app').setAttribute('aria-busy', String(value));
+        document.querySelectorAll('button, input, select').forEach((control) => {
+          if (value && !control.disabled) {
+            control.disabled = true;
+            control.dataset.pending = '';
+          } else if (!value && 'pending' in control.dataset) {
+            control.disabled = false;
+            delete control.dataset.pending;
+          }
+        });
+      }
+      const now = () => DB.serverTime ?? T0 + DB.off,
+        E = (c, m) => Object.assign(new Error(m), { code: c });
+      const pv = (id) => DB.pvz.find((p) => p.id === id),
+        it = (id) => DB.items.find((i) => i.id === id);
+      const od = (id) => {
+        const o = DB.orders.find((o) => o.id === id);
+        if (!o) throw E(404, 'Заказ не найден');
+        return o;
+      };
+      const load = (id) =>
+        DB.batches.filter((b) => b.pvz === id).reduce((s, b) => s + b.qty, 0) +
+        DB.orders
+          .filter(
+            (o) =>
+              o.target === id &&
+              (o.status === 'ASSEMBLED' || (o.status === 'CREATED' && o.source_pvz_id !== id)),
+          )
+          .reduce((s, o) => s + o.qty, 0);
+      const led = (kind, pvz, amt, why, oid) =>
+        DB.ledger.push({ t: now(), kind, pvz, amt, why, oid });
+      const note = (type, pvz, text) => DB.notes.unshift({ t: now(), type, pvz, text });
+      const km = (a, b) =>
+        Math.hypot(
+          (a.lat - b.lat) * 111,
+          (a.lng - b.lng) * 111 * Math.cos((a.lat * Math.PI) / 180),
+        );
+      const sum = (a, f) => a.reduce((s, x) => s + f(x), 0),
+        fd = (t) => new Date(t).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+      function seed() {
+        const C = {
+          m: { id: uid(), name: 'Москва', code: 'MSK' },
+          s: { id: uid(), name: 'Санкт-Петербург', code: 'SPB' },
+        };
+        const mk = (c, n, a, lat, lng, cap, fi, fa, fis, fs) => ({
+          id: uid(),
+          city: C[c].id,
+          name: n,
+          address: a,
+          lat,
+          lng,
+          cap,
+          fi,
+          fa,
+          fis,
+          fs,
+          active: true,
+        });
+        const pvz = [
+          mk('m', 'ПВЗ Москва-1', 'Тверская, 7', 55.76, 37.61, 100, 4, 18, 12, 1.5),
+          mk('m', 'ПВЗ Москва-2', 'Арбат, 20', 55.75, 37.59, 60, 5, 20, 14, 1.8),
+          mk('m', 'ПВЗ Москва-3', 'Ленинский пр., 90', 55.69, 37.53, 30, 4, 16, 10, 1.2),
+          mk('s', 'ПВЗ СПб-1', 'Невский пр., 50', 59.93, 30.34, 80, 4, 17, 11, 1.4),
+        ];
+        const items = [
+          { id: uid(), name: 'Кружка', kg: 0.4, vol: 0.002, price: 450 },
+          { id: uid(), name: 'Плед', kg: 1.2, vol: 0.012, price: 1900 },
+          { id: uid(), name: 'Куртка', kg: 1.5, vol: 0.03, price: 4200 },
+        ];
+        const bt = (i, p, q, d) => ({
+          id: uid(),
+          item: items[i].id,
+          pvz: pvz[p].id,
+          qty: q,
+          res: 0,
+          at: T0 - d * DAY,
+          chg: T0 - d * DAY,
+        });
+        DB = {
+          off: 0,
+          cities: Object.values(C),
+          pvz: pvz,
+          hubs: [
+            { id: uid(), city: C.m.id, name: 'Хаб Москва', is_stub: true },
+            { id: uid(), city: C.s.id, name: 'Хаб СПб', is_stub: true },
+          ],
+          seller: { id: uid(), name: 'ИП Орлов' },
+          items,
+          batches: [
+            bt(0, 0, 40, 1),
+            bt(0, 1, 15, 1),
+            bt(0, 3, 20, 1),
+            bt(1, 0, 10, 1),
+            bt(1, 3, 5, 1),
+            bt(1, 2, 26, 1),
+            bt(2, 0, 30, 1),
+          ],
+          orders: [],
+          ledger: [],
+          notes: [],
+          idem: new Map(),
+          incidents: [],
+        };
+        UI.pvz = pvz[0].id;
+        UI.f = {
+          qty: 2,
+          intakeQty: 2,
+          pref: 'COST',
+          item: items[0].id,
+          intakeItem: items[0].id,
+          tgt: pvz[2].id,
+        };
+        UI.keys = {};
+        UI.q = null;
+        UI.sel = null;
+      }
+      function quote(i, qty, t) {
+        const ch = Math.max(i.kg * qty, i.vol * qty * 250);
+        const c = DB.batches
+          .filter((b) => b.item === i.id && b.qty - b.res >= qty && pv(b.pvz).active)
+          .map((b) => ({ b, d: km(pv(b.pvz), t) }))
+          .sort((x, y) => x.d - y.d)[0];
+        if (!c) throw E(409, 'Нет партии с остатком ' + qty + ' ед. ни на одном ПВЗ');
+        const sp = pv(c.b.pvz),
+          same = sp.city === t.city,
+          d = Math.max(c.d, 0.5),
+          full = !t.active || load(t.id) + (sp.id === t.id ? 0 : qty) > t.cap,
+          blk = !t.active
+            ? 'Целевой ПВЗ недоступен'
+            : 'Целевой ПВЗ заполнен (' + load(t.id) + '/' + t.cap + ')';
+        const hf = call('POST', '/stub/hub/handle', { chargeable_kg: ch }, uid()).data.hub_fee,
+          tr = call(
+            'POST',
+            '/stub/trunk/move',
+            { chargeable_kg: ch, km: same ? 12 : d },
+            uid(),
+          ).data;
+        const mc = 20 + ch * d * 0.35,
+          mh = 3 + d / 40;
+        const mesh = {
+          scheme: 'MESH',
+          cost: mc,
+          hours: mh,
+          ok: !full && same,
+          why: full
+            ? blk
+            : !same
+              ? 'Прямой рейс доступен только внутри города'
+              : 'прямая доставка между ПВЗ',
+          segs: [
+            { n: sp.name, l: 'партия' },
+            { n: t.name, l: rub(mc) + ' · ' + mh.toFixed(1) + ' ч', e: 1 },
+          ],
+        };
+        const hc = 18 + hf.total + tr.cost + 25,
+          hh = 4 + 6 + tr.hours + 3;
+        const hub = {
+          scheme: 'HUB_TRUNK',
+          cost: hc,
+          hours: hh,
+          ok: !full,
+          why: full ? blk : 'через хаб и магистраль',
+          segs: [
+            { n: sp.name, l: 'партия' },
+            { n: 'Хаб', l: 'заглушка · ' + rub(hf.total), h: 1 },
+            {
+              n: 'Магистраль',
+              l: 'заглушка · ' + rub(tr.cost) + ' · ' + tr.hours.toFixed(1) + ' ч',
+              h: 1,
+            },
+            { n: t.name, l: 'последняя миля ' + rub(25), e: 1 },
+          ],
+        };
+        return {
+          mesh,
+          hub,
+          src: c.b,
+          srcName: sp.name,
+          ch,
+          same,
+          block:
+            blk +
+            (full
+              ? '. Свободные ПВЗ города: ' +
+                (DB.pvz
+                  .filter(
+                    (p) =>
+                      p.active &&
+                      p.city === t.city &&
+                      p.id !== t.id &&
+                      load(p.id) + (p.id === sp.id ? 0 : qty) <= p.cap,
+                  )
+                  .map((p) => p.name)
+                  .join(', ') || 'нет')
+              : ''),
+        };
+      }
+      function createOrder(b) {
+        const i = it(b.item_id),
+          t = pv(b.target_pvz_id),
+          qty = +b.qty;
+        if (!i || !t || !Number.isSafeInteger(qty) || qty < 1)
+          throw E(422, 'Проверьте товар, ПВЗ и количество');
+        const q = quote(i, qty, t),
+          pref = b.preference === 'TIME' ? 'TIME' : 'COST',
+          ok = [q.mesh, q.hub].filter((v) => v.ok);
+        if (!ok.length) throw E(409, q.block);
+        const ch = [...ok].sort((a, c) =>
+            pref === 'COST' ? a.cost - c.cost : a.hours - c.hours,
+          )[0],
+          alt = ok.find((v) => v !== ch),
+          oth = ch === q.mesh ? q.hub : q.mesh;
+        const reason = alt
+          ? `Выбрана ${ch.scheme} при приоритете «${pref === 'COST' ? 'стоимость' : 'срок'}»: ${pref === 'COST' ? 'дешевле на ' + rub(alt.cost - ch.cost) + ' (' + Math.round((1 - ch.cost / alt.cost) * 100) + '%)' : 'быстрее на ' + (alt.hours - ch.hours).toFixed(1) + ' ч'}. Альтернатива ${alt.scheme}: ${rub(alt.cost)}, ${alt.hours.toFixed(1)} ч.`
+          : `Единственная допустимая схема — ${ch.scheme}. ${oth.scheme}: ${oth.why}.`;
+        q.src.res += qty;
+        const sla = q.same ? 24 : 72;
+        const o = {
+          id: uid(),
+          seller: DB.seller.id,
+          item: i.id,
+          qty,
+          target: t.id,
+          source_pvz_id: q.src.pvz,
+          pref,
+          status: 'CREATED',
+          chosen: ch.scheme,
+          variants: { mesh: q.mesh, hub: q.hub },
+          segs: ch.segs,
+          cost: ch.cost,
+          cost0: ch.cost,
+          base: q.hub.cost,
+          hours: ch.hours,
+          sla,
+          reason,
+          batch: q.src.id,
+          price: i.price * qty,
+          created: now(),
+          incidents: [],
+        };
+        DB.orders.unshift(o);
+        return o;
+      }
+      const apiBase = new URLSearchParams(location.search).get('api')?.trim().replace(/\/+$/, '');
+      let busy = false;
+      let screenError = '';
+      let screenData = new Map();
+      const pendingKeys = new Map();
+
+      const cacheKey = (path, query = {}) => path + '?' + new URLSearchParams(query);
+      function read(method, path, query = {}) {
+        if (!apiBase) return call(method, path, query).data;
+        const key = cacheKey(path, query);
+        if (!screenData.has(key)) throw Error('Данные экрана недоступны. Обновите страницу.');
+        return screenData.get(key);
+      }
+
+      async function request(method, path, payload = {}) {
+        const url = new URL(apiBase + path, location.href);
+        if (!['http:', 'https:'].includes(url.protocol)) throw Error('Укажите HTTP-адрес API.');
+        const headers = { Accept: 'application/json' };
+        const body = method === 'POST' ? JSON.stringify(payload) : undefined;
+        const signature = path + ' ' + body;
+        if (body) {
+          headers['Content-Type'] = 'application/json';
+          if (path !== '/items') {
+            if (!pendingKeys.has(signature)) pendingKeys.set(signature, uid());
+            headers['Idempotency-Key'] = pendingKeys.get(signature);
+          }
+        } else {
+          url.search = new URLSearchParams(payload).toString();
+        }
+        let response;
+        try {
+          response = await fetch(url, {
+            method,
+            headers,
+            body,
+            signal: AbortSignal.timeout(10000),
+          });
+        } catch {
+          throw Error(
+            'Сервер недоступен. Проверьте адрес API и настройки CORS. Повтор операции сохранит её ключ.',
+          );
+        }
+        if (
+          response.status >= 400 &&
+          response.status < 500 &&
+          ![408, 425, 429].includes(response.status)
+        )
+          pendingKeys.delete(signature);
+        UI.log.unshift({
+          t: new Date().toLocaleTimeString('ru-RU'),
+          ep: method,
+          path,
+          st: response.status,
+          key: headers['Idempotency-Key'],
+        });
+        UI.log.length = Math.min(UI.log.length, 60);
+        if (response.ok) UI.used.add(method + ' ' + path.replace(/\/(?:(?:[0-9a-f-]{36})|\d{8})(?=\/|$)/g, '/{id}'));
+        if (response.status === 204 && method === 'POST') {
+          pendingKeys.delete(signature);
+          return null;
+        }
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+          const reason = result?.error ?? result?.detail ?? result?.message;
+          const error = Error(
+            `${method} ${path} · HTTP ${response.status}${typeof reason === 'string' ? ' · ' + reason : ''}`,
+          );
+          if (response.status === 409 && result?.quote?.chosen === null) error.quote = result.quote;
+          throw error;
+        }
+        if (result === null) throw Error(`Сервер должен вернуть JSON для ${method} ${path}.`);
+        pendingKeys.delete(signature);
+        return result;
+      }
+
+      async function refresh(bootstrap = false) {
+        setBusy(true);
+        if (!DB) $('#app').textContent = 'Подключение к API…';
+        try {
+          if (bootstrap || !DB) {
+            const data = await request('GET', '/frontend/bootstrap');
+            if (
+              !data?.seller?.id ||
+              !Array.isArray(data.pvz) ||
+              !data.pvz.length ||
+              !Array.isArray(data.items) ||
+              !Array.isArray(data.orders)
+            ) {
+              throw Error(
+                'Ответ /frontend/bootstrap не содержит справочники, заказы или продавца.',
+              );
+            }
+            const serverTime = data.now ? Date.parse(data.now) : Date.now();
+            DB = {
+              ...data,
+              off: 0,
+              serverTime: Number.isFinite(serverTime) ? serverTime : Date.now(),
+            };
+            if (!pv(UI.pvz)) UI.pvz = DB.pvz[0].id;
+            if (!pv(UI.f.tgt)) UI.f.tgt = DB.pvz[0].id;
+            if (!it(UI.f.item)) UI.f.item = DB.items[0]?.id ?? '';
+            if (!it(UI.f.intakeItem)) UI.f.intakeItem = DB.items[0]?.id ?? '';
+            if (!DB.orders.some((order) => order.id === UI.sel)) UI.sel = null;
+          }
+          const requests = [];
+          if (UI.role === 'S') {
+            if (UI.tab.S === 'items')
+              requests.push(...DB.items.map((item) => [`/items/${item.id}/batches`]));
+            if (UI.tab.S === 'an') requests.push([`/analytics/seller/${DB.seller.id}`]);
+            if (UI.tab.S === 'order' && UI.sel) requests.push([`/orders/${UI.sel}`]);
+          } else {
+            const paths = {
+              stock: [`/pvz/${UI.pvz}/stock`],
+              an: [`/analytics/pvz/${UI.pvz}`],
+              nt: ['/notifications', { pvz: UI.pvz }],
+            };
+            if (paths[UI.tab.P]) requests.push(paths[UI.tab.P]);
+          }
+          const entries = await Promise.all(
+            requests.map(async ([path, query]) => [
+              cacheKey(path, query),
+              await request('GET', path, query),
+            ]),
+          );
+          screenData = new Map(entries);
+          screenError = '';
+        } catch (error) {
+          screenError = error.message;
+        } finally {
+          setBusy(false);
+          if (DB) render();
+          else {
+            $('#app').innerHTML =
+              `<div class="c" role="alert">${esc(screenError)} <button class="b" data-a="refresh">Повторить подключение</button></div>`;
+            $('#app').setAttribute('aria-busy', 'false');
+          }
+        }
+      }
+
+      function orderPayload() {
+        const { item, qty, tgt, pref } = UI.f;
+        if (!it(item) || !pv(tgt) || !Number.isSafeInteger(+qty) || +qty < 1) {
+          throw Error('Выберите товар и ПВЗ, укажите целое количество от 1.');
+        }
+        return { item_id: item, qty: +qty, target_pvz_id: tgt, preference: pref };
+      }
+
+      function itemPayload() {
+        const { name, kg, vol, price, cogs } = UI.itemDraft;
+        if (!name.trim()) throw E(422, 'Укажите название товара');
+        if (
+          ![kg, vol, price].every((value) => value.trim() && Number.isFinite(Number(value))) ||
+          Number(kg) <= 0 ||
+          Number(vol) <= 0 ||
+          Number(price) < 0
+        ) {
+          throw E(422, 'Вес и объём должны быть больше нуля, цена — от нуля');
+        }
+        const payload = { name: name.trim(), kg: Number(kg), vol: Number(vol), price: Number(price) };
+        if (apiBase && cogs.trim() !== '') {
+          if (!Number.isFinite(Number(cogs)) || Number(cogs) < 0)
+            throw E(422, 'Себестоимость должна быть неотрицательной.');
+          payload.cogs = Number(cogs);
+        }
+        return payload;
+      }
+
+      function intakePayload() {
+        const { intakeItem, intakeQty } = UI.f;
+        const qty = Number(intakeQty);
+        if (!it(intakeItem) || !Number.isSafeInteger(qty) || qty < 1)
+          throw E(422, 'Выберите товар и укажите целое количество от 1');
+        return { item_id: intakeItem, qty };
+      }
+
+      async function remoteAction(action, data) {
+        if (['role', 'tab', 'sel'].includes(action)) {
+          A[action](data);
+          await refresh();
+          return;
+        }
+        if (action === 'refresh') {
+          UI.q = null;
+          await refresh(true);
+          return;
+        }
+        if (!DB && action !== 'health') return;
+        const id = data.id;
+        const operations = {
+          mk: () => ['/orders', orderPayload(), 'Заказ создан'],
+          newitem: () => ['/items', itemPayload(), 'Товар создан'],
+          intake: () => [`/pvz/${UI.pvz}/intake`, intakePayload(), 'Партия принята'],
+          asm: () => [`/orders/${id}/assemble`, {}, 'Заказ собран'],
+          iss: () => [`/orders/${id}/issue`, {}, 'Заказ выдан'],
+          ret: () => [`/orders/${id}/return`, {}, 'Возврат оформлен'],
+          inc: () => ['/incidents', { order_id: id, type: 'WRONG_PVZ' }, 'Ошибка зафиксирована'],
+          adv: () => ['/system/time/advance', { days: +data.d }, 'Время сдвинуто'],
+        };
+        setBusy(true);
+        try {
+          if (action === 'calc' || action === 'alternative') {
+            if (action === 'alternative') UI.f.tgt = id;
+            UI.q = null;
+            const result = await request('GET', '/frontend/quote', orderPayload());
+            UI.q = {
+              ...result,
+              win: [result.mesh, result.hub].find((v) => v?.ok && v.scheme === result.chosen),
+            };
+            UI.msg = UI.q.win
+              ? { t: result.reason || 'Маршруты рассчитаны', ok: true }
+              : null;
+          } else if (action === 'health') {
+            await request('GET', '/health');
+            M('Сервер ответил на проверку состояния', true);
+          } else {
+            const [path, payload, message] = operations[action]();
+            const result = await request('POST', path, payload);
+            if (action === 'mk') UI.sel = result?.id ?? result?.order_id ?? null;
+            if (action === 'newitem') UI.itemDraft.name = '';
+            UI.q = null;
+            M(message, true);
+            await refresh(true);
+            return;
+          }
+        } catch (error) {
+          if (action === 'mk' && error.quote) {
+            UI.q = error.quote;
+            UI.msg = null;
+          } else {
+            M(error.message, false);
+          }
+        } finally {
+          setBusy(false);
+          render();
+        }
+      }
+
+      const H = [
+        [
+          'GET',
+          '/health',
+          () => ({ status: 'ok', db: 'postgres16 (mock)', time: new Date(now()).toISOString() }),
+        ],
+        [
+          'POST',
+          '/items',
+          (b) => {
+            if (!String(b.name ?? '').trim()) throw E(422, 'Укажите название');
+            if (
+              ![b.kg, b.vol, b.price].every(
+                (value) => String(value ?? '').trim() && Number.isFinite(+value),
+              ) ||
+              +b.kg <= 0 ||
+              +b.vol <= 0 ||
+              +b.price < 0
+            ) {
+              throw E(422, 'Вес и объём должны быть больше нуля, цена — от нуля');
+            }
+            const i = {
+              id: uid(),
+              name: b.name.trim(),
+              kg: +b.kg,
+              vol: +b.vol,
+              price: +b.price,
+            };
+            DB.items.push(i);
+            return i;
+          },
+        ],
+        [
+          'GET',
+          '/items/:id/batches',
+          (b, id) =>
+            DB.batches
+              .filter((x) => x.item === id && x.qty > 0)
+              .map((x) => ({
+                pvz: pv(x.pvz).name,
+                qty: x.qty,
+                reserved: x.res,
+                age_days: Math.floor((now() - x.at) / DAY),
+              })),
+        ],
+        ['POST', '/orders', createOrder],
+        [
+          'GET',
+          '/orders/:id',
+          (b, id) => {
+            const order = od(id);
+            const revenue = order.status === 'ISSUED' ? order.price : 0;
+            const pvz_fees = sum(
+              DB.ledger.filter((entry) => entry.oid === id && entry.pvz),
+              (entry) => entry.amt,
+            );
+            return {
+              ...order,
+              financials: { revenue, pvz_fees, result: revenue - order.cost - pvz_fees },
+            };
+          },
+        ],
+        [
+          'GET',
+          '/analytics/seller/:id',
+          () => {
+            accrue();
+            const os = DB.orders,
+              rev = sum(
+                os.filter((o) => o.status === 'ISSUED'),
+                (o) => o.price,
+              ),
+              lg = sum(os, (o) => o.cost),
+              fees = sum(
+                DB.ledger.filter((entry) => entry.pvz),
+                (l) => l.amt,
+              ),
+              base = sum(os, (o) => o.base),
+              m = lg;
+            return {
+              orders: os.length,
+              revenue: rev,
+              logistics: lg,
+              pvz_fees: fees,
+              profit: rev - lg - fees,
+              base_cost: base,
+              mesh_cost: m,
+              saving: base - m,
+              saving_pct: base ? ((base - m) / base) * 100 : 0,
+            };
+          },
+        ],
+        [
+          'POST',
+          '/pvz/:id/intake',
+          (b, id) => {
+            const p = pv(id),
+              i = it(b.item_id),
+              q = +b.qty;
+            if (!p?.active || !i || !Number.isSafeInteger(q) || q < 1)
+              throw E(422, 'Проверьте товар и количество');
+            if (load(id) + q > p.cap)
+              throw E(409, `Нет места: ${load(id)}/${p.cap}, приёмка ${q} ед.`);
+            DB.batches.push({
+              id: uid(),
+              item: i.id,
+              pvz: id,
+              qty: q,
+              res: 0,
+              at: now(),
+              chg: now(),
+            });
+            led('intake', id, p.fi * q, `Приёмка ${q} ед. «${i.name}»`);
+            return { accepted: q, load: load(id), capacity: p.cap };
+          },
+        ],
+        [
+          'GET',
+          '/pvz/:id/stock',
+          (b, id) => ({
+            load: load(id),
+            capacity: pv(id).cap,
+            rows: DB.batches
+              .filter((x) => x.pvz === id && x.qty > 0)
+              .map((x) => ({
+                item: it(x.item).name,
+                qty: x.qty,
+                reserved: x.res,
+                age_days: Math.floor((now() - x.at) / DAY),
+              })),
+          }),
+        ],
+        [
+          'POST',
+          '/orders/:id/assemble',
+          (b, id) => {
+            const o = od(id);
+            if (o.status === 'ASSEMBLED' || o.status === 'ISSUED')
+              return {
+                order_id: id,
+                status: o.status,
+                replay: true,
+                note: 'Уже собран — повторного списания нет',
+              };
+            if (o.status !== 'CREATED') throw E(409, 'Нельзя собрать заказ в статусе ' + o.status);
+            const bt = DB.batches.find((x) => x.id === o.batch);
+            bt.qty -= o.qty;
+            bt.res -= o.qty;
+            led('assembly', bt.pvz, pv(bt.pvz).fa, 'Сборка ' + sh(o.id), o.id);
+            o.status = 'ASSEMBLED';
+            return { order_id: id, status: o.status, written_off: o.qty };
+          },
+        ],
+        [
+          'POST',
+          '/orders/:id/issue',
+          (b, id) => {
+            const o = od(id);
+            if (o.status !== 'ASSEMBLED')
+              throw E(409, 'Выдать можно только собранный заказ (сейчас ' + o.status + ')');
+            led('issue', o.target, pv(o.target).fis, 'Выдача ' + sh(o.id), o.id);
+            o.status = 'ISSUED';
+            return { order_id: id, status: o.status, revenue: o.price };
+          },
+        ],
+        [
+          'POST',
+          '/orders/:id/return',
+          (b, id) => {
+            const o = od(id);
+            if (o.status !== 'ISSUED')
+              throw E(409, 'Вернуть можно только выданный заказ (сейчас ' + o.status + ')');
+            const p = pv(o.target);
+            if (load(p.id) + o.qty > p.cap) throw E(409, 'Нет места для приёмки возврата');
+            led('correction', p.id, -p.fis, 'Возврат: сторно выдачи ' + sh(o.id), o.id);
+            DB.batches.push({
+              id: uid(),
+              item: o.item,
+              pvz: p.id,
+              qty: o.qty,
+              res: 0,
+              at: now(),
+              chg: now(),
+            });
+            o.status = 'RETURNED';
+            note(
+              'INFO',
+              p.id,
+              'Возврат по заказу ' + sh(o.id) + ': ' + o.qty + ' ед. снова на остатке',
+            );
+            return { order_id: id, status: o.status, restocked: o.qty };
+          },
+        ],
+        [
+          'POST',
+          '/incidents',
+          (b) => {
+            const o = od(b.order_id);
+            if (o.status === 'ISSUED' || o.status === 'RETURNED')
+              throw E(409, 'Заказ уже выдан — ошибка маршрута невозможна');
+            if (o.incidents.length) throw E(409, 'Ошибка по этому заказу уже зарегистрирована');
+            const alt = o.chosen === 'MESH' ? o.variants.hub : o.variants.mesh,
+              extra = 30 + o.cost * 0.2,
+              from = o.chosen;
+            if (alt.ok) {
+              o.chosen = alt.scheme;
+              o.segs = alt.segs;
+              o.cost = alt.cost;
+              o.hours = alt.hours;
+              o.reason = `После логистической ошибки схема изменена: ${from} → ${o.chosen}.`;
+            }
+            if (!alt.ok) o.reason = `Маршрут сохранён: ${alt.why}. Учтены последствия ошибки.`;
+            o.cost += extra;
+            o.hours += 6;
+            led(
+              'incident',
+              null,
+              extra,
+              'Логистическая ошибка: ' + (b.type || 'WRONG_PVZ') + ' · ' + sh(o.id),
+              o.id,
+            );
+            const inc = {
+              id: uid(),
+              order: o.id,
+              type: b.type || 'WRONG_PVZ',
+              from,
+              to: o.chosen,
+              extra_cost: extra,
+              extra_hours: 6,
+            };
+            o.incidents.push(inc);
+            note(
+              'ERROR',
+              o.target,
+              `Ошибка по заказу ${sh(o.id)}: маршрут ${from} → ${o.chosen}, +${rub(extra)}, +6 ч`,
+            );
+            return inc;
+          },
+        ],
+        [
+          'GET',
+          '/analytics/pvz/:id',
+          (b, id) => {
+            accrue();
+            const L = DB.ledger.filter((l) => l.pvz === id),
+              inc = sum(L, (l) => l.amt),
+              by = (k) =>
+                sum(
+                  L.filter((l) => l.kind === k),
+                  (l) => l.amt,
+                );
+            return {
+              income: inc,
+              intake: by('intake'),
+              assembly: by('assembly'),
+              issue: by('issue'),
+              storage: by('storage'),
+              corrections: by('correction'),
+              cost: inc * 0.4,
+              profit: inc * 0.6,
+              load: load(id),
+              capacity: pv(id).cap,
+            };
+          },
+        ],
+        ['GET', '/notifications', (b) => DB.notes.filter((n) => !b.pvz || n.pvz === b.pvz)],
+        [
+          'POST',
+          '/stub/hub/handle',
+          (b) => ({
+            is_stub: true,
+            hub_fee: { handling_in: 15, sorting: 10, handling_out: 15, total: 40 },
+            chargeable_kg: b.chargeable_kg,
+          }),
+        ],
+        [
+          'POST',
+          '/stub/trunk/move',
+          (b) => ({
+            is_stub: true,
+            cost: Math.max(30, b.chargeable_kg * b.km * 0.12),
+            hours: 2 + b.km / 60,
+            formula: 'chargeable_kg × km × 0.12',
+          }),
+        ],
+        [
+          'POST',
+          '/system/time/advance',
+          (b) => {
+            const days = Number(b.days);
+            if (!Number.isSafeInteger(days) || days < 1 || now() + days * DAY > 8.64e15)
+              throw E(422, 'Укажите допустимое целое число дней от 1');
+            DB.off += days * DAY;
+            accrue();
+            return { now: new Date(now()).toISOString() };
+          },
+        ],
+      ];
+      const EPS = H.map((h) => h[0] + ' ' + h[1].replace(':id', '{id}'));
+      function accrue() {
+        DB.batches.forEach((b) => {
+          const d = Math.floor((now() - b.chg) / DAY);
+          if (d > 0) {
+            if (b.qty > 0) {
+              const p = pv(b.pvz);
+              led('storage', p.id, p.fs * b.qty * d, `Хранение ${esc(b.qty)} ед. × ${d} сут.`);
+            }
+            b.chg += d * DAY;
+          }
+          if (!b.warned && b.qty > 0 && now() - b.at >= 7 * DAY) {
+            b.warned = 1;
+            note(
+              'LONG_STORAGE',
+              b.pvz,
+              `Партия «${it(b.item).name}» (${esc(b.qty)} ед.) лежит ${Math.floor((now() - b.at) / DAY)} сут.`,
+            );
+          }
+        });
+      }
+      function call(m, path, body = {}, key) {
+        let id,
+          h = H.find((x) => {
+            if (x[0] !== m) return 0;
+            const r = new RegExp('^' + x[1].replace(':id', '([0-9a-f-]{36})') + '$').exec(path);
+            if (r) {
+              id = r[1];
+              return 1;
+            }
+          });
+        const ep = m + ' ' + (h ? h[1].replace(':id', '{id}') : path);
+        const signature = JSON.stringify([
+          m,
+          path,
+          Object.entries(body).sort(([a], [b]) => a.localeCompare(b)),
+        ]);
+        let st = 200,
+          data,
+          replay = 0;
+        try {
+          if (!h) throw E(404, 'Маршрут не найден');
+          if (m === 'POST' && h[1] !== '/items') {
+            if (!key) throw E(400, 'Idempotency-Key обязателен на POST');
+            const previous = DB.idem.get(key);
+            if (previous) {
+              if (previous.signature !== signature)
+                throw E(409, 'Этот ключ уже использован для другой операции');
+              replay = 1;
+              st = previous.status;
+              data = structuredClone(previous.data);
+            }
+          }
+          if (!replay) data = h[2](body, id);
+        } catch (e) {
+          st = e.code || 500;
+          data = { error: e.message };
+        }
+        if (!replay && m === 'POST' && h?.[1] !== '/items' && key && st < 300)
+          DB.idem.set(key, { signature, status: st, data: structuredClone(data) });
+        if (st < 300) UI.used.add(ep);
+        UI.log.unshift({
+          ep,
+          st,
+          key,
+          replay,
+          path: path.replace(/[0-9a-f-]{36}/, (x) => sh(x)),
+          t: new Date(now()).toLocaleTimeString('ru-RU'),
+          err: st >= 300 ? data.error : '',
+        });
+        UI.log.length = Math.min(UI.log.length, 60);
+        return { status: st, data, replay };
+      }
+      const chip = (t, c = '') => `<span class="chip ${c}">${t}</span>`,
+        SC = { CREATED: 'ac', ASSEMBLED: 'wn', ISSUED: 'ok', RETURNED: 'er' },
+        SN = { CREATED: 'создан', ASSEMBLED: 'собран', ISSUED: 'выдан', RETURNED: 'возврат' };
+      const opt = (a, v, f) =>
+        a
+          .map(
+            (x) =>
+              `<option value="${esc(x.id)}"${x.id === v ? ' selected' : ''}>${esc(f(x))}</option>`,
+          )
+          .join('');
+      const route = (segs = []) =>
+        `<div class="route">${segs.map((s) => `<div class="nd ${s.is_stub || s.h ? 'h' : ''} ${s.e ? 'e' : ''}">${esc(s.n)}<small>${s.is_stub ? 'Заглушка · ' : ''}${esc(s.l)}</small></div>`).join('')}</div>`;
+      function variant(v, win) {
+        return `<div class="v ${win ? 'win' : ''} ${v.ok ? '' : 'no'}"><div class="row" style="margin:0;justify-content:space-between"><b>${esc(v.scheme)}</b>${win ? chip('рекомендуется', 'ac') : v.ok ? '' : chip('недоступно', 'er')}</div>
+ <div class="big">${v.ok ? rub(v.cost) : '—'}</div><div class="mu">${v.ok ? Number(v.hours).toFixed(1) + ' ч' : 'Недоступно'} · ${esc(v.why)}</div>${route(v.segs)}</div>`;
+      }
+      function routePreview(q) {
+        if (!q) {
+          return '<p class="mu">Нажмите «Сравнить схемы», чтобы увидеть оба маршрута и выбор по приоритету.</p>';
+        }
+        if (!q.win) {
+          const alternatives = q.alternative_pvzs ?? [];
+          return `<p class="msg er" role="status">${esc(q.block || q.reason || 'Для выбранного ПВЗ нет доступного маршрута.')}</p>
+            ${alternatives.length ? `<p class="mu">Выберите другой ПВЗ</p><div class="row">${alternatives.map((point) =>
+              `<button type="button" class="b" data-a="alternative" data-id="${esc(point.id)}">${esc(point.name)} · ${rub(point.cost)} · ${Number(point.hours).toFixed(1)} ч</button>`,
+            ).join('')}</div>` : '<p class="mu">Проверьте количество или выберите другой ПВЗ в списке.</p>'}`;
+        }
+        return `<div class="g">${variant(q.mesh, q.win === q.mesh)}${variant(q.hub, q.win === q.hub)}</div>
+          <p class="mu">Источник: ${esc(q.srcName ?? '—')} · расчётный вес ${Number(q.ch).toFixed(2)} кг · хаб и магистраль — заглушки, ставки — допущение</p>`;
+      }
+      function orderRow(o, pvzView) {
+        const i = it(o.item);
+        return `<tr><td title="${esc(o.id)}">${esc(sh(o.id))}</td><td>${esc(i?.name ?? o.item)} × ${esc(o.qty)}</td>${pvzView ? '' : `<td>${esc(pv(o.target)?.name ?? o.target)}</td>`}<td>${chip(Object.hasOwn(SN, o.status) ? SN[o.status] : esc(o.status), Object.hasOwn(SC, o.status) ? SC[o.status] : '')}</td><td>${chip(esc(o.chosen))}</td><td>${rub(o.cost)}</td><td>${Number(o.hours).toFixed(1)} ч ${Number(o.hours) <= Number(o.sla) ? '' : chip('вне SLA', 'er')}</td><td style="white-space:nowrap">${pvzView ? pvzAct(o) : `<button class="b" data-a="sel" data-id="${esc(o.id)}">Детали</button>`}</td></tr>`;
+      }
+      function pvzAct(o) {
+        const b = (a, t, c = '') =>
+          `<button class="b ${c}" data-a="${a}" data-id="${esc(o.id)}">${t}</button> `;
+        return (
+          (o.status === 'CREATED' && o.source_pvz_id === UI.pvz ? b('asm', 'Собрать', 'p') : '') +
+          (o.status === 'ASSEMBLED'
+            ? (!apiBase && UI.keys[o.id] && o.source_pvz_id === UI.pvz
+                ? b('asm2', 'Повтор сборки')
+                : '') + (o.target === UI.pvz ? b('iss', 'Выдать', 'p') : '')
+            : '') +
+          (o.status === 'ISSUED' && o.target === UI.pvz ? b('ret', 'Возврат') : '') +
+          (['CREATED', 'ASSEMBLED'].includes(o.status) && !o.incidents?.length
+            ? b('inc', 'Сообщить об ошибке', 'd')
+            : '')
+        );
+      }
+      function orderFinancials(order) {
+        const result = order.financials;
+        if (order.order_calcs) {
+          const { mesh, base, comparison, storage_days } = order.order_calcs;
+          const money = (cents) => cents == null ? '—' : rub(cents / 100);
+          const rows = [
+            ['Трансфер', (v) => v.transfer_cents],
+            ['Результат ПВЗ', (v) => v.pvz.result_cents],
+            ['Себестоимость маркетплейса', (v) => v.marketplace.cost_cents],
+            ['Маржа маркетплейса', (v) => v.marketplace.margin_cents],
+            ['Прибыль продавца', (v) => v.seller.profit_cents],
+            ['Доставка для покупателя', (v) => v.buyer.delivery_cents],
+          ];
+          const saving = comparison?.marketplace_saving;
+          const delta = saving ? `<p class="mu">Экономия маркетплейса при mesh: ${rub(saving.rub)}${saving.pct == null ? '' : ' · ' + saving.pct.toFixed(2) + '%'}</p>` : '';
+          return `<h4>Прогноз экономики заказа</h4><p class="mu">Хранение: ${esc(storage_days)} сут.</p><div class="tw"><table><tr><th>Показатель</th><th>MESH</th><th>База через хаб</th></tr>${rows.map(([label, get]) => `<tr><td>${label}</td><td>${mesh ? money(get(mesh)) : '—'}</td><td>${base ? money(get(base)) : '—'}</td></tr>`).join('')}</table></div>${delta}`;
+        }
+        if (!result) return '';
+        return `<h4>Экономика заказа</h4><dl class="order-financials">
+          <div><dt>Выручка</dt><dd>${rub(result.revenue)}</dd></div>
+          <div><dt>Логистика</dt><dd>${rub(order.cost)}</dd></div>
+          <div><dt>Начисления ПВЗ по заказу</dt><dd>${rub(result.pvz_fees)}</dd></div>
+          <div><dt>Результат по заказу</dt><dd>${rub(result.result)}</dd></div>
+        </dl>`;
+      }
+      function vSeller() {
+        const t = UI.tab.S,
+          f = UI.f;
+        let h = `<div class="tabs">${[
+          ['order', 'Заказы'],
+          ['items', 'Товары и остатки'],
+          ['an', 'Аналитика'],
+        ]
+          .map(
+            (x) =>
+              `<button class="${t === x[0] ? 'on' : ''}" data-a="tab" data-v="${x[0]}">${x[1]}</button>`,
+          )
+          .join('')}</div>`;
+        if (t === 'order') {
+          const q = UI.q;
+          h += `<div class="c"><h3>Новый заказ</h3><div class="row"><label>Товар<select data-f="item">${opt(DB.items, f.item, (i) => i.name)}</select></label><label>Кол-во<input data-f="qty" type="number" min="1" value="${esc(f.qty)}" style="width:80px"></label><label>Целевой ПВЗ<select data-f="tgt">${opt(DB.pvz, f.tgt, (p) => p.name)}</select></label><label>Приоритет<select data-f="pref"><option value="COST"${f.pref === 'COST' ? ' selected' : ''}>Стоимость</option><option value="TIME"${f.pref === 'TIME' ? ' selected' : ''}>Срок</option></select></label><button class="b" data-a="calc">Сравнить схемы</button><button class="b p" data-a="mk"${q && !q.win ? ' disabled' : ''}>Создать заказ</button></div>
+ <div id="route-preview">${routePreview(q)}</div></div>
+ <div class="c tw" style="margin-top:14px"><h3>Мои заказы</h3>${DB.orders.length ? `<table><tr><th>ID</th><th>Товар</th><th>ПВЗ</th><th>Статус</th><th>Схема</th><th>Стоимость</th><th>Срок</th><th></th></tr>${DB.orders.map((o) => orderRow(o)).join('')}</table>` : '<p class="mu">Заказов пока нет — создайте первый выше.</p>'}</div>`;
+          const s = UI.sel && DB.orders.find((o) => o.id === UI.sel);
+          if (s) {
+            const r = read('GET', '/orders/' + s.id);
+            h += `<div class="c" style="margin-top:14px"><h3>Заказ ${esc(sh(r.id))} · обоснование схемы</h3><p>${esc(r.reason)}</p>${route(r.segs)}<div class="mu">Итого ${rub(r.cost)} (база через хаб: ${r.base == null ? '—' : rub(r.base)}) · SLA ${esc(r.sla)} ч · ID ${esc(r.id)}</div>${orderFinancials(r)}${r.variants ? `<div class="g">${variant(r.variants.mesh, r.chosen === 'MESH')}${variant(r.variants.hub, r.chosen === 'HUB_TRUNK')}</div>` : ''}${(r.incidents ?? []).map((n) => `<p class="er-t">Ошибка ${esc(n.type)}: ${esc(n.from)} → ${esc(n.to)}, +${rub(n.extra_cost)}, +${esc(n.extra_hours)} ч</p>`).join('')}</div>`;
+          }
+        }
+        if (t === 'items') {
+          h += `<div class="g"><div class="c"><h3>Новый товар</h3><div class="row"><label>Название<input id="in" data-draft="name" placeholder="Футболка" value="${esc(UI.itemDraft.name)}"></label><label>Вес, кг<input id="ik" data-draft="kg" type="number" step=".1" value="${esc(UI.itemDraft.kg)}" style="width:80px"></label><label>Объём, м³<input id="iv" data-draft="vol" type="number" step=".001" value="${esc(UI.itemDraft.vol)}" style="width:90px"></label><label>Цена, ₽<input id="ip" data-draft="price" type="number" value="${esc(UI.itemDraft.price)}" style="width:80px"></label>${apiBase ? `<label>Себестоимость, ₽<input data-draft="cogs" type="number" min="0" step=".01" value="${esc(UI.itemDraft.cogs)}" style="width:100px"></label>` : ''}<button class="b p" data-a="newitem">Создать</button></div><p class="mu">Укажи вес, объём и цену одной единицы товара.</p></div></div>
+ <div class="c tw" style="margin-top:14px"><h3>Где лежит товар</h3><table><tr><th>Товар</th><th>ПВЗ</th><th>Остаток</th><th>Резерв</th><th>Возраст</th></tr>${DB.items
+   .map((i) => {
+     const batches = read('GET', `/items/${i.id}/batches`);
+     if (!batches.length)
+       return `<tr><td>${esc(i.name)}</td><td>Нет партий</td><td>0</td><td>0</td><td>—</td></tr>`;
+     return batches
+       .map(
+         (b) =>
+           `<tr><td>${esc(i.name)}</td><td>${esc(b.pvz)}</td><td>${esc(b.qty)}</td><td>${esc(b.reserved)}</td><td>${esc(b.age_days)} сут.</td></tr>`,
+       )
+       .join('');
+   })
+   .join('')}</table></div>`;
+        }
+        if (t === 'an') {
+          const a = read('GET', '/analytics/seller/' + DB.seller.id),
+            mx = Math.max(a.base_cost, a.mesh_cost, 1);
+          const hasBreakdown = a.schemes != null;
+          const result = a.profit == null ? '—' : rub(a.profit);
+          const breakdown = hasBreakdown
+            ? `<div class="mu">Выручка ${rub(a.revenue)} · комиссия ${rub(a.commission)} · логистика ${rub(a.logistics)} · хранение ${rub(a.storage)} · себестоимость ${a.cogs == null ? '—' : rub(a.cogs)}.</div>
+              ${a.unknown_cogs_orders ? '<p class="mu">У части выданных заказов не указана себестоимость.</p>' : ''}
+              <p class="mu">Выдано без возврата: ${esc(a.issued)} · возвратов: ${esc(a.returned)} · MESH: ${esc(a.schemes.MESH)} · HUB_TRUNK: ${esc(a.schemes.HUB_TRUNK)}</p>`
+            : `<div class="mu">Выручка ${rub(a.revenue)} − логистика ${rub(a.logistics)} − ПВЗ ${rub(a.pvz_fees)}.</div>`;
+          const saving = a.saving_pct == null ? rub(a.saving) : `${rub(a.saving)} · ${Number(a.saving_pct).toFixed(1)}%`;
+          h += `<div class="g"><div class="c"><div class="mu">Операционный результат продавца</div><div class="big">${result}</div>${breakdown}</div>
+  <div class="c"><div class="mu">Разница с базой через хаб</div><div class="big">${saving}</div><div class="mu">${hasBreakdown ? `Заказов с базовым сравнением: ${esc(a.comparable_orders)} из ${esc(a.orders)}` : esc(a.orders) + ' заказов'}</div></div></div>
+  <div class="c" style="margin-top:14px"><h3>База (всё через хаб) и выбранные схемы</h3><p class="mu">База</p><div class="bar"><i style="width:${(a.base_cost / mx) * 100}%"></i></div><b>${rub(a.base_cost)}</b><p class="mu">Выбранные схемы</p><div class="bar"><i style="width:${(a.mesh_cost / mx) * 100}%"></i></div><b>${rub(a.mesh_cost)}</b></div>`;
+        }
+        return h;
+      }
+      function vPvz() {
+        const t = UI.tab.P,
+          p = pv(UI.pvz),
+          f = UI.f;
+        let h = `<div class="row"><label>ПВЗ<select data-f="pvz">${opt(DB.pvz, UI.pvz, (x) => x.name)}</select></label><span class="mu">${esc(p.address)} · приёмка ${rub(p.fi)} · сборка ${rub(p.fa)} · выдача ${rub(p.fis)} · хранение ${rub(p.fs)}/ед./сут. ${chip('допущение, не тариф RWB', 'stub')}</span></div>
+ <div class="tabs">${[
+   ['orders', 'Заказы'],
+   ['stock', 'Остатки и приёмка'],
+   ['an', 'Аналитика'],
+   ['nt', 'Уведомления'],
+ ]
+   .map(
+     (x) =>
+       `<button class="${t === x[0] ? 'on' : ''}" data-a="tab" data-v="${x[0]}">${x[1]}</button>`,
+   )
+   .join('')}</div>`;
+        if (t === 'orders') {
+          const os = DB.orders.filter((o) => o.target === p.id || o.source_pvz_id === p.id);
+          h += `<div class="c tw"><h3>Заказы на этом ПВЗ</h3>${os.length ? `<table><tr><th>ID</th><th>Товар</th><th>Статус</th><th>Схема</th><th>Стоимость</th><th>Срок</th><th></th></tr>${os.map((o) => orderRow(o, 1)).join('')}</table>` : '<p class="mu">Заказов на этот ПВЗ нет. Создайте заказ в роли продавца.</p>'}</div>`;
+        }
+        if (t === 'stock') {
+          const s = read('GET', `/pvz/${p.id}/stock`);
+          h += `<div class="g"><div class="c"><h3>Занято и зарезервировано</h3><div class="big">${esc(s.load)} / ${esc(s.capacity)}</div><div class="bar"><i style="width:${s.capacity > 0 ? Math.min(100, (s.load / s.capacity) * 100) : 0}%"></i></div></div>
+ <div class="c"><h3>Приёмка партии</h3><div class="row"><label>Товар<select data-f="intakeItem">${opt(DB.items, f.intakeItem, (i) => i.name)}</select></label><label>Кол-во<input data-f="intakeQty" type="number" min="1" value="${esc(f.intakeQty)}" style="width:80px"></label><button class="b p" data-a="intake">Принять</button></div></div></div>
+ <div class="c tw" style="margin-top:14px"><table><tr><th>Товар</th><th>Остаток</th><th>Резерв</th><th>Возраст</th></tr>${s.rows.map((r) => `<tr><td>${esc(r.item)}</td><td>${esc(r.qty)}</td><td>${esc(r.reserved)}</td><td>${esc(r.age_days)} сут. ${r.age_days >= 7 ? chip('долгое хранение', 'wn') : ''}</td></tr>`).join('')}</table></div>`;
+        }
+        if (t === 'an') {
+          const a = read('GET', '/analytics/pvz/' + p.id);
+          h += `<div class="g"><div class="c"><div class="mu">Прибыль ПВЗ</div><div class="big">${rub(a.profit)}</div><div class="mu">доход ${rub(a.income)} · расходы ${rub(a.cost)} ${chip('расходы по модели', 'stub')}</div>${a.issued == null ? '' : `<p class="mu">Выдано без возврата: ${esc(a.issued)} · возвратов: ${esc(a.returned)}</p>`}</div>
+ <div class="c"><h3>Доход по видам</h3><table>${[
+   ['Приёмка', a.intake],
+   ['Сборка', a.assembly],
+   ['Выдача', a.issue],
+   ['Хранение', a.storage],
+   ['Корректировки (возвраты)', a.corrections],
+ ]
+   .map((r) => `<tr><td>${r[0]}</td><td>${rub(r[1])}</td></tr>`)
+   .join('')}</table></div></div>`;
+        }
+        if (t === 'nt') {
+          const n = read('GET', '/notifications', { pvz: p.id });
+          h += `<div class="c"><h3>Уведомления</h3>${n.length ? n.map((x) => `<div class="st"><span>${chip(x.type === 'ERROR' ? 'ошибка' : x.type === 'LONG_STORAGE' ? 'хранение' : 'инфо', x.type === 'ERROR' ? 'er' : x.type === 'LONG_STORAGE' ? 'wn' : '')}</span><span>${esc(x.text)}<br><span class="mu">${fd(x.t)}</span></span></div>`).join('') : '<p class="mu">Уведомлений нет. Они появятся при ошибке маршрута или хранении от 7 суток.</p>'}</div>`;
+        }
+        return h;
+      }
+      function vDemo() {
+        let h = `<div class="c"><h2>Пять обязательных сценариев</h2><p class="mu">Прогон использует отдельный тестовый набор. Отчёт покажет статусы, остатки и суммы до и после операций.</p><button class="b p" data-a="run">Прогнать все сценарии</button></div>`;
+        if (UI.scen)
+          h += UI.scen
+            .map(
+              (s) =>
+                `<div class="c" style="margin-top:14px"><h3>${s.t} ${chip(s.st.every((x) => x.ok) ? 'пройден' : 'ошибка', s.st.every((x) => x.ok) ? 'ok' : 'er')}</h3>${s.st.map((x) => `<div class="st"><span class="m ${x.ok ? 'ok-t' : 'er-t'}">${x.ok ? '✓' : '✗'}</span><span>${x.t}<br><span class="mu">${x.d || ''}</span></span></div>`).join('')}</div>`,
+            )
+            .join('');
+        return h;
+      }
+      function render() {
+        $('#roles').innerHTML = [
+          ['S', 'Продавец'],
+          ['P', 'ПВЗ'],
+          ...(!apiBase ? [['X', 'Сценарии']] : []),
+        ]
+          .map(
+            (r) =>
+              `<button class="${UI.role === r[0] ? 'on' : ''}" data-a="role" data-v="${r[0]}">${r[1]}</button>`,
+          )
+          .join('');
+        $('#clock').textContent =
+          'Время системы: ' + fd(now()) + (DB.off ? ` (+${Math.round(DB.off / DAY)} дн.)` : '');
+        $('#msg').innerHTML = UI.msg
+          ? `<div class="msg ${UI.msg.ok ? 'ok' : 'er'}">${esc(UI.msg.t)}</div>`
+          : '';
+        const titles = {
+          S: ['Кабинет продавца', 'Управляйте товарами, остатками и доставкой заказов.'],
+          P: ['Кабинет ПВЗ', 'Принимайте партии, обрабатывайте заказы и проверяйте начисления.'],
+          X: ['Демонстрация', 'Проверьте штатные и нештатные операции на тестовых данных.'],
+        };
+        const [title, description] = titles[UI.role];
+        let content;
+        try {
+          if (screenError) throw Error(screenError);
+          content = UI.role === 'S' ? vSeller() : UI.role === 'P' ? vPvz() : vDemo();
+        } catch (error) {
+          content = `<div class="c" role="alert">${esc(error.message)} <button class="b" data-a="refresh">Обновить</button></div>`;
+        }
+        $('#app').innerHTML =
+          `<section class="workspace-heading"><div class="screen-tag">${chip(apiBase ? 'Серверный режим' : 'Локальное демо', 'ac')}</div><h1>${title}</h1><p class="mu">${description}</p></section>${content}`;
+        $('#app').setAttribute('aria-busy', 'false');
+        $('#csum').textContent =
+          `Консоль API · покрытие ${EPS.filter((e) => UI.used.has(e)).length} из ${EPS.length} эндпоинтов`;
+        $('#cov').innerHTML = EPS.map(
+          (e) => `<span class="${UI.used.has(e) ? 'on' : ''}">${e}</span>`,
+        ).join('');
+        $('#lg').innerHTML =
+          UI.log
+            .map(
+              (l) =>
+                `${esc(l.t)} ${esc(l.ep)} ${esc(l.path)} <b class="${l.st < 300 ? 'k' : 'e'}">${l.st}</b>${l.key ? ' key=' + sh(l.key) : ''}${l.replay ? ' (повтор: ответ из кэша)' : ''}${l.err ? ' · ' + esc(l.err) : ''}`,
+            )
+            .join('<br>') || 'Запросов пока нет';
+      }
+      const M = (t, ok) => {
+        UI.msg = { t, ok };
+      };
+      const res = (r, okT) =>
+        M(
+          r.status < 300
+            ? okT +
+                (r.replay
+                  ? ' · повторный ключ, ответ из кэша'
+                  : r.data?.replay
+                    ? ' · ' + r.data.note
+                    : '')
+            : 'Ошибка ' + r.status + ': ' + r.data.error,
+          r.status < 300,
+        );
+      const A = {
+        role: (d) => {
+          UI.role = d.v;
+          UI.msg = null;
+        },
+        tab: (d) => {
+          UI.tab[UI.role] = d.v;
+          UI.msg = null;
+        },
+        sel: (d) => {
+          UI.sel = d.id;
+        },
+        adv: (d) => {
+          res(
+            call('POST', '/system/time/advance', { days: +d.d }, uid()),
+            'Время сдвинуто на ' + d.d + ' дн. — хранение начислено',
+          );
+          UI.q = null;
+        },
+        reset: () => {
+          seed();
+          UI.log = [];
+          UI.used = new Set();
+          UI.scen = null;
+          M('Данные сброшены к сидам', true);
+        },
+        health: () => {
+          call('GET', '/health');
+        },
+        nokey: () => {
+          res(call('POST', '/orders', {}), '');
+        },
+        calc: () => {
+          const f = UI.f;
+          try {
+            const input = orderPayload();
+            const q = quote(it(input.item_id), input.qty, pv(input.target_pvz_id)),
+              ok = [q.mesh, q.hub].filter((v) => v.ok);
+            q.win = ok.sort((a, c) => (f.pref === 'COST' ? a.cost - c.cost : a.hours - c.hours))[0];
+            UI.q = q;
+            UI.msg = null;
+          } catch (e) {
+            M(e.message, 0);
+          }
+        },
+        mk: () => {
+          const r = call('POST', '/orders', orderPayload(), uid());
+          res(r, 'Заказ создан');
+          if (r.status < 300) {
+            UI.sel = r.data.id;
+            UI.q = null;
+          }
+        },
+        newitem: () => {
+          const result = call('POST', '/items', itemPayload());
+          res(result, 'Товар создан');
+          if (result.status < 300) UI.itemDraft.name = '';
+        },
+        intake: () =>
+          res(call('POST', `/pvz/${UI.pvz}/intake`, intakePayload(), uid()), 'Партия принята'),
+        asm: (d) => {
+          UI.keys[d.id] = uid();
+          res(call('POST', `/orders/${d.id}/assemble`, {}, UI.keys[d.id]), 'Заказ собран');
+        },
+        asm2: (d) =>
+          res(
+            call('POST', `/orders/${d.id}/assemble`, {}, UI.keys[d.id] || uid()),
+            'Повторная сборка: двойного списания нет',
+          ),
+        iss: (d) => res(call('POST', `/orders/${d.id}/issue`, {}, uid()), 'Заказ выдан'),
+        ret: (d) => res(call('POST', `/orders/${d.id}/return`, {}, uid()), 'Возврат оформлен'),
+        inc: (d) =>
+          res(
+            call('POST', '/incidents', { order_id: d.id, type: 'WRONG_PVZ' }, uid()),
+            'Ошибка зафиксирована, маршрут пересчитан',
+          ),
+        run: () => {
+          const currentData = DB;
+          const currentUI = UI;
+          try {
+            UI = { ...currentUI, f: { ...currentUI.f }, log: [], used: new Set(), keys: {} };
+            currentUI.scen = scen();
+            const passed = currentUI.scen.filter((scenario) =>
+              scenario.st.every((step) => step.ok),
+            ).length;
+            M(
+              `Пройдено сценариев: ${passed} из ${currentUI.scen.length}`,
+              passed === currentUI.scen.length,
+            );
+            currentUI.msg = UI.msg;
+          } finally {
+            DB = currentData;
+            UI = currentUI;
+          }
+        },
+      };
+      function updateField(element) {
+        const key = element.dataset.f;
+        if (!key || busy) return;
+        if (key === 'pvz') UI.pvz = element.value;
+        else UI.f[key] = element.value;
+        UI.q = null;
+        if (['qty', 'item', 'tgt', 'pref'].includes(key)) UI.msg = null;
+      }
+
+      document.addEventListener('input', (event) => {
+        const field = event.target.dataset.draft;
+        if (field) UI.itemDraft[field] = event.target.value;
+        if (event.target.matches('input[data-f]') && !busy) {
+          updateField(event.target);
+          const preview = $('#route-preview');
+          if (preview) {
+            preview.innerHTML = routePreview(null);
+            $('[data-a="mk"]').disabled = false;
+            $('#msg').replaceChildren();
+          }
+        }
+      });
+      document.addEventListener('change', (event) => {
+        if (!event.target.matches('select[data-f]') || busy) return;
+        updateField(event.target);
+        if (apiBase && event.target.dataset.f === 'pvz') refresh();
+        else render();
+      });
+
+      document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-a]');
+        if (!button || busy) return;
+        const action = button.dataset.a;
+        if (apiBase) return remoteAction(action, button.dataset);
+        try {
+          if (['intake', 'asm', 'iss', 'ret', 'inc'].includes(action)) UI.q = null;
+          A[action]?.(button.dataset);
+        } catch (error) {
+          M(error.code ? `Ошибка ${error.code}: ${error.message}` : error.message, false);
+        }
+        render();
+      });
+      function scen() {
+        seed();
+        UI.log = [];
+        UI.used = new Set();
+        const P = (n) => DB.pvz.find((p) => p.name.includes(n)),
+          I = (n) => DB.items.find((i) => i.name === n),
+          k = uid;
+        const st = (i, p) =>
+            sum(
+              DB.batches.filter((b) => b.item === i.id && b.pvz === p.id),
+              (b) => b.qty,
+            ),
+          S = [],
+          step = (a, t, ok, d) => a.push({ t, ok, d });
+        const m2 = P('Москва-2'),
+          m3 = P('Москва-3'),
+          spb = P('СПб'),
+          cup = I('Кружка'),
+          jk = I('Куртка'),
+          pl = I('Плед');
+        let a = [],
+          b0 = st(cup, m2);
+        let r = call(
+            'POST',
+            '/orders',
+            { item_id: cup.id, qty: 2, target_pvz_id: m3.id, preference: 'COST' },
+            k(),
+          ),
+          o = r.data;
+        step(
+          a,
+          `Заказ ${sh(o.id)} создан: ${o.chosen}, ${rub(o.cost)}, ${Number(o.hours).toFixed(1)} ч`,
+          o.chosen === 'MESH',
+          'Внутри города mesh дешевле хаба (' + rub(o.base) + '). ' + o.reason,
+        );
+        const key = k();
+        call('POST', `/orders/${o.id}/assemble`, {}, key);
+        const r2 = call('POST', `/orders/${o.id}/assemble`, {}, key);
+        const r3 = call('POST', `/orders/${o.id}/assemble`, {}, k());
+        step(
+          a,
+          'Сборка идемпотентна: повтор с тем же ключом и с новым ключом',
+          st(cup, m2) === b0 - 2 && r2.replay && r3.data.replay,
+          `Остаток ${m2.name}: до ${b0}, после ${st(cup, m2)} (списано один раз)`,
+        );
+        call('POST', `/orders/${o.id}/issue`, {}, k());
+        step(
+          a,
+          'Выдача покупателю',
+          o.status === 'ISSUED',
+          'Статус: ' + o.status + ', выручка ' + rub(o.price),
+        );
+        S.push({ t: '1. Городской заказ', st: a });
+        a = [];
+        r = call(
+          'POST',
+          '/orders',
+          { item_id: jk.id, qty: 10, target_pvz_id: spb.id, preference: 'TIME' },
+          k(),
+        );
+        const h = r.data;
+        step(
+          a,
+          `Заказ ${sh(h.id)}: ${h.chosen}, ${rub(h.cost)}, ${h.hours.toFixed(1)} ч`,
+          h.chosen === 'HUB_TRUNK',
+          'Mesh: ' + rub(h.variants.mesh.cost) + ' · хаб: ' + rub(h.variants.hub.cost),
+        );
+        step(
+          a,
+          'Вызваны заглушки хаба и магистрали',
+          UI.used.has('POST /stub/hub/handle') && UI.used.has('POST /stub/trunk/move'),
+          'Магистраль = chargeable_kg × км × 0.12, ставка — допущение',
+        );
+        S.push({ t: '2. Хаб и магистраль', st: a });
+        a = [];
+        const rb = st(cup, m3);
+        call('POST', `/orders/${o.id}/return`, {}, k());
+        step(
+          a,
+          'Возврат выданного заказа',
+          o.status === 'RETURNED',
+          `Остаток ${m3.name}: до ${rb}, после ${st(cup, m3)}; сторно выдачи ${rub(-pv(m3.id).fis)}`,
+        );
+        step(
+          a,
+          'Повторный возврат отклонён',
+          call('POST', `/orders/${o.id}/return`, {}, k()).status === 409,
+          'Статус-гард',
+        );
+        S.push({ t: '3. Возврат', st: a });
+        a = [];
+        r = call(
+          'POST',
+          '/orders',
+          { item_id: cup.id, qty: 1, target_pvz_id: m3.id, preference: 'COST' },
+          k(),
+        );
+        const e = r.data,
+          c0 = e.cost;
+        const ri = call('POST', '/incidents', { order_id: e.id, type: 'WRONG_PVZ' }, k());
+        step(
+          a,
+          `Ошибка по заказу ${sh(e.id)}: ${ri.data.from} → ${ri.data.to}`,
+          ri.status === 200,
+          `Стоимость ${rub(c0)} → ${rub(e.cost)} (+${rub(ri.data.extra_cost)}), срок после переназначения: ${e.hours.toFixed(1)} ч`,
+        );
+        step(
+          a,
+          'Уведомление об ошибке на ПВЗ',
+          DB.notes.some((n) => n.type === 'ERROR'),
+          'Раздел «Уведомления»',
+        );
+        S.push({ t: '4. Логистическая ошибка', st: a });
+        a = [];
+        call('POST', `/pvz/${m2.id}/intake`, { item_id: pl.id, qty: 5 }, k());
+        const l0 = sum(
+          DB.ledger.filter((l) => l.kind === 'storage'),
+          (l) => l.amt,
+        );
+        call('POST', '/system/time/advance', { days: 10 }, k());
+        const l1 = sum(
+          DB.ledger.filter((l) => l.kind === 'storage'),
+          (l) => l.amt,
+        );
+        step(a, 'Время сдвинуто на 10 суток', DB.off === 10 * DAY, 'Системное время: ' + fd(now()));
+        step(a, 'Начислено хранение', l1 > l0, `Хранение: до ${rub(l0)}, после ${rub(l1)}`);
+        step(
+          a,
+          'Уведомление «долгое хранение»',
+          DB.notes.some((n) => n.type === 'LONG_STORAGE'),
+          'Партии старше 7 суток',
+        );
+        S.push({ t: '5. Длительное хранение', st: a });
+        return S;
+      }
+      if (apiBase) {
+        const refreshButton = document.createElement('button');
+        refreshButton.className = 'b';
+        refreshButton.dataset.a = 'refresh';
+        refreshButton.textContent = 'Обновить данные';
+        document.querySelector('header').append(refreshButton);
+        document
+          .querySelectorAll('[data-a="reset"], [data-a="nokey"]')
+          .forEach((button) => button.remove());
+        refresh(true);
+      } else {
+        seed();
+        render();
+      }
+    </script>
+  </body>
+</html>

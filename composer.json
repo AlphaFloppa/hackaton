@@ -1,0 +1,16 @@
+{
+  "name": "mesh/routing-pricing",
+  "description": "Routing and order economics for the Mesh MVP",
+  "type": "library",
+  "require": {
+    "php": ">=8.2"
+  },
+  "suggest": {
+    "ext-pdo_pgsql": "Persists route revisions to PostgreSQL"
+  },
+  "autoload": {
+    "psr-4": {
+      "Mesh\\Routing\\": "src/"
+    }
+  }
+}
