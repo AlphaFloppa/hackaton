@@ -20,11 +20,9 @@ final class NotificationController extends ApiController
     {
         return self::handleExceptions(function () use ($request): Response {
             $pvzId = $request->query->get('pvz_id');
-            if ($pvzId !== null && !preg_match('/^[0-9a-f-]{36}$/i', (string) $pvzId)) {
-                $pvzId = null;
-            }
+            $pvzId = is_string($pvzId) && preg_match('/^[0-9a-f-]{36}$/i', $pvzId) ? strtolower($pvzId) : null;
 
-            return $this->json($this->notifications->forPvz($pvzId !== null ? strtolower((string) $pvzId) : null));
+            return $this->json($this->notifications->forPvz($pvzId));
         });
     }
 

@@ -1,5 +1,9 @@
 # Все маршруты API v1 (перенесены из PHP-атрибутов).
 # Формат контроллера: FQCN::method
+#
+# Спецификация тел POST-запросов задана как доп. параметры маршрута в ключе `body_spec:`
+# (документация; Symfony их игнорирует). Формат полей: имя: тип (required|optional) — описание.
+# Идемпотентность: все POST (кроме items_create) требуют заголовок Idempotency-Key.
 
 # ── Продавец (S) ────────────────────────────────────────────────────────────
 
@@ -8,6 +12,13 @@ app.items_create:
     path: /api/v1/items
     controller: App\Controller\CatalogController::create
     methods: POST
+    options:
+        body_spec:
+            seller_id: "uuid (required) — ID продавца-владельца"
+            sku: "string (required) — артикул продавца"
+            title: "string (required) — название товара"
+            weight_kg: "float (optional, default 0) — вес, кг"
+            volume_m3: "float (optional, default 0) — объём, м³"
 
 # Где лежит товар: остатки партий по ПВЗ
 app.items_batches:
@@ -22,6 +33,13 @@ app.orders_create:
     path: /api/v1/orders
     controller: App\Controller\OrderController::create
     methods: POST
+    options:
+        body_spec:
+            item_id: "uuid (required) — ID товара"
+            qty: "int >= 1 (required) — количество"
+            target_pvz_id: "uuid (required) — ID целевого ПВЗ"
+            customer_id: "uuid (optional) — ID покупателя (заглушка)"
+            preference: "enum COST|TIME (optional, default COST) — приоритет: цена или скорость"
 
 # Заказ целиком: статус, решение маршрута, сегменты, расчёт экономики
 app.orders_get:
@@ -40,6 +58,11 @@ app.pvz_intake:
     methods: POST
     requirements:
         pvzId: '[0-9a-f-]{36}'
+    options:
+        body_spec:
+            item_id: "uuid (required) — ID товара"
+            qty: "int >= 1 (required) — количество единиц в партии"
+            storage_tariff_day: "float (optional, default 0) — тариф хранения, ₽/ед./сутки"
 
 # Остатки и загрузка ПВЗ (вместимость, партии)
 app.pvz_stock:
@@ -56,6 +79,8 @@ app.pvz_storage_accrue:
     methods: POST
     requirements:
         pvzId: '[0-9a-f-]{36}'
+    options:
+        body_spec: ~ (тело не требуется)
 
 # Сборка заказа: RESERVE на партии + проводка FEE_ASSEMBLY (идемпотентно)
 app.order_assemble:
@@ -64,6 +89,8 @@ app.order_assemble:
     methods: POST
     requirements:
         id: '[0-9a-f-]{36}'
+    options:
+        body_spec: ~ (тело не требуется)
 
 # Выдача покупателю: COMMIT резерва + проводка FEE_ISSUE (идемпотентно)
 app.order_issue:
@@ -72,6 +99,8 @@ app.order_issue:
     methods: POST
     requirements:
         id: '[0-9a-f-]{36}'
+    options:
+        body_spec: ~ (тело не требуется)
 
 # Возврат заказа: RELEASE резерва / REFUND + уведомление (идемпотентно)
 app.order_return:
@@ -80,12 +109,21 @@ app.order_return:
     methods: POST
     requirements:
         id: '[0-9a-f-]{36}'
+    options:
+        body_spec:
+            reason: "string (optional) — причина возврата"
 
 # Зафиксировать логистическую ошибку (инцидент)
 app.incidents_create:
     path: /api/v1/incidents
     controller: App\Controller\IncidentController::create
     methods: POST
+    options:
+        body_spec:
+            type: "string (required) — тип инцидента (например MISSEND)"
+            description: "string (required) — описание ошибки"
+            order_id: "uuid (optional) — связанный заказ"
+            pvz_id: "uuid (optional) — связанный ПВЗ"
 
 # Уведомления ПВЗ (долгое хранение, ошибки); фильтр ?pvz_id=
 app.notifications_list:
@@ -98,6 +136,8 @@ app.notifications_read_all:
     path: /api/v1/notifications/read-all
     controller: App\Controller\NotificationController::readAll
     methods: POST
+    options:
+        body_spec: ~ (тело не требуется; фильтр ?pvz_id=)
 
 # ── Аналитика ───────────────────────────────────────────────────────────────
 
@@ -124,24 +164,37 @@ app.stub_hub_handle:
     path: /api/v1/stub/hub/handle
     controller: App\Controller\StubController::hubHandle
     methods: POST
+    options:
+        body_spec:
+            order_id: "uuid (required) — ID заказа"
 
 # STUB: магистраль (IN_TRANSIT -> DELIVERED_TO_PVZ, cost = kg × км × 0.05₽)
 app.stub_trunk_move:
     path: /api/v1/stub/trunk/move
     controller: App\Controller\StubController::trunkMove
     methods: POST
+    options:
+        body_spec:
+            order_id: "uuid (required) — ID заказа"
+            chargeable_kg: "float (optional, default 1) — тарифицируемый вес, кг"
+            distance_km: "float (optional, default 0) — длина магистрали, км"
 
 # Сдвиг тестового времени на N часов (сценарий 5)
 app.system_time_advance:
     path: /api/v1/system/time/advance
     controller: App\Controller\SystemController::timeAdvance
     methods: POST
+    options:
+        body_spec:
+            hours: "int >= 1 (required) — на сколько часов сдвинуть время"
 
 # Сброс тестового времени на реальное
 app.system_time_reset:
     path: /api/v1/system/time/reset
     controller: App\Controller\SystemController::timeReset
     methods: POST
+    options:
+        body_spec: ~ (тело не требуется)
 
 # Healthcheck для Docker (проверяет доступность БД)
 app.health:
