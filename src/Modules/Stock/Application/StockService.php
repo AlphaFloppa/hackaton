@@ -74,58 +74,53 @@ final class StockService
     /** Сборка заказа: RESERVE на партии + проводка FEE_ASSEMBLY. */
     public function assemble(string $orderId, string $idempotencyKey): array
     {
-        if ($this->stock->movementExists($idempotencyKey)) {
-            return ['status' => 'already_processed'];
-        }
-
-        $order = $this->orders->requireOrder($orderId);
-        if (!in_array($order['status'], ['CREATED', 'RESERVED'], true)) {
-            throw new ConflictException("Order in status {$order['status']} cannot be assembled");
-        }
-
-        $qty = (int) $order['qty'];
-
-        $this->stock->transactional(function () use ($order, $orderId, $qty, $idempotencyKey): void {
-            $batch = $this->stock->findBatchForReserve($order['item_id'], $order['target_pvz_id'], $qty);
-            if ($batch === null) {
-                throw new ConflictException('No stock batch with sufficient qty at target PVZ');
+        return $this->changeOrderStock($orderId, $idempotencyKey, function (array $order) use ($orderId, $idempotencyKey): array {
+            if (!in_array($order['status'], ['CREATED', 'RESERVED'], true)) {
+                throw new ConflictException("Order in status {$order['status']} cannot be assembled");
             }
 
-            $this->stock->reserve($batch['id'], $qty);
-            $this->stock->movement($batch['id'], $orderId, 'RESERVE', $qty, $idempotencyKey);
-            $this->orders->updateStatus($orderId, 'ASSEMBLED', $batch['id']);
+            $point = OrderRepository::assemblyPoint($order);
+            $remaining = (int) $order['qty'];
+            $firstBatch = null;
+            foreach ($this->stock->batchesForReserve($order['item_id'], $point) as $batch) {
+                $qty = min($remaining, (int) $batch['qty_available']);
+                $key = $firstBatch === null ? $idempotencyKey : $idempotencyKey . ':' . $batch['id'];
+                $this->stock->reserve($batch['id'], $qty);
+                $this->stock->movement($batch['id'], $orderId, 'RESERVE', $qty, $key);
+                $firstBatch ??= $batch['id'];
+                $remaining -= $qty;
+                if ($remaining === 0) {
+                    break;
+                }
+            }
+            if ($remaining > 0) {
+                throw new ConflictException('Недостаточно товара в ПВЗ сборки по выбранному маршруту.');
+            }
+            $this->orders->updateStatus($orderId, 'ASSEMBLED', $firstBatch);
 
             $this->ledger->entry(
-                $orderId, $order['target_pvz_id'], $order['seller_id'],
-                'PVZ', 'FEE_ASSEMBLY', $this->fee($order['target_pvz_id'], 'fee_assembly'),
+                $orderId, $point, $order['seller_id'],
+                'PVZ', 'FEE_ASSEMBLY', $this->fee($point, 'fee_assembly'),
                 'Сборка заказа', $idempotencyKey . ':fee_assembly',
             );
-        });
 
-        return ['order_id' => $orderId, 'status' => 'ASSEMBLED'];
+            return ['order_id' => $orderId, 'status' => 'ASSEMBLED'];
+        });
     }
 
     /** Выдача покупателю: COMMIT резерва + FEE_ISSUE. */
     public function issue(string $orderId, string $idempotencyKey): array
     {
-        if ($this->stock->movementExists($idempotencyKey)) {
-            return ['status' => 'already_processed'];
-        }
-
-        $order = $this->orders->requireOrder($orderId);
-        if (!in_array($order['status'], ['ASSEMBLED', 'DELIVERED_TO_PVZ'], true)) {
-            throw new ConflictException("Order in status {$order['status']} cannot be issued");
-        }
-
-        $qty = (int) $order['qty'];
-        $batchId = $order['source_batch_id'];
-        if ($batchId === null) {
-            throw new ConflictException('Order has no source batch');
-        }
-
-        $this->stock->transactional(function () use ($order, $orderId, $qty, $batchId, $idempotencyKey): void {
-            $this->stock->commitReserve($batchId, $qty);
-            $this->stock->movement($batchId, $orderId, 'COMMIT', $qty, $idempotencyKey);
+        return $this->changeOrderStock($orderId, $idempotencyKey, function (array $order) use ($orderId, $idempotencyKey): array {
+            if (!in_array($order['status'], ['ASSEMBLED', 'DELIVERED_TO_PVZ'], true)) {
+                throw new ConflictException("Order in status {$order['status']} cannot be issued");
+            }
+            foreach ($this->reservations($order) as $index => $batch) {
+                $qty = (int) $batch['qty'];
+                $key = $index === 0 ? $idempotencyKey : $idempotencyKey . ':' . $batch['batch_id'];
+                $this->stock->commitReserve($batch['batch_id'], $qty);
+                $this->stock->movement($batch['batch_id'], $orderId, 'COMMIT', $qty, $key);
+            }
             $this->orders->updateStatus($orderId, 'COMPLETED');
 
             $this->ledger->entry(
@@ -133,36 +128,27 @@ final class StockService
                 'PVZ', 'FEE_ISSUE', $this->fee($order['target_pvz_id'], 'fee_issue'),
                 'Выдача заказа', $idempotencyKey . ':fee_issue',
             );
-        });
 
-        return ['order_id' => $orderId, 'status' => 'COMPLETED'];
+            return ['order_id' => $orderId, 'status' => 'COMPLETED'];
+        });
     }
 
     /** Возврат: RELEASE резерва (или возврат выданного) + уведомление. */
     public function returnOrder(string $orderId, string $idempotencyKey, ?string $reason): array
     {
-        if ($this->stock->movementExists($idempotencyKey)) {
-            return ['status' => 'already_processed'];
-        }
-
-        $order = $this->orders->requireOrder($orderId);
-        if (!in_array($order['status'], ['ASSEMBLED', 'DELIVERED_TO_PVZ', 'COMPLETED'], true)) {
-            throw new ConflictException("Order in status {$order['status']} cannot be returned");
-        }
-
-        $qty = (int) $order['qty'];
-        $batchId = $order['source_batch_id'];
-        if ($batchId === null) {
-            throw new ConflictException('Order has no source batch');
-        }
-
-        $this->stock->transactional(function () use ($order, $orderId, $qty, $batchId, $idempotencyKey, $reason): void {
-            if ($order['status'] === 'ASSEMBLED') {
-                $this->stock->releaseReserve($batchId, $qty);
-            } else {
-                $this->stock->releaseReserve($batchId, 0); // возвращённый товар уже списан — только статус
+        return $this->changeOrderStock($orderId, $idempotencyKey, function (array $order) use ($orderId, $idempotencyKey, $reason): array {
+            if (!in_array($order['status'], ['ASSEMBLED', 'DELIVERED_TO_PVZ', 'COMPLETED'], true)) {
+                throw new ConflictException("Order in status {$order['status']} cannot be returned");
             }
-            $this->stock->movement($batchId, $orderId, 'RETURN', $qty, $idempotencyKey);
+
+            foreach ($this->reservations($order) as $index => $batch) {
+                $qty = (int) $batch['qty'];
+                if ($order['status'] !== 'COMPLETED') {
+                    $this->stock->releaseReserve($batch['batch_id'], $qty);
+                }
+                $key = $index === 0 ? $idempotencyKey : $idempotencyKey . ':' . $batch['batch_id'];
+                $this->stock->movement($batch['batch_id'], $orderId, 'RETURN', $qty, $key);
+            }
             $this->orders->updateStatus($orderId, 'RETURNED');
 
             $this->ledger->entry(
@@ -175,9 +161,34 @@ final class StockService
                 $order['target_pvz_id'], $orderId,
                 'RETURN', 'Заказ возвращён' . ($reason !== null ? ": $reason" : ''),
             );
-        });
 
-        return ['order_id' => $orderId, 'status' => 'RETURNED'];
+            return ['order_id' => $orderId, 'status' => 'RETURNED'];
+        });
+    }
+
+    private function changeOrderStock(string $orderId, string $key, callable $operation): array
+    {
+        return $this->stock->transactional(function () use ($orderId, $key, $operation): array {
+            $order = $this->orders->requireOrder($orderId, lock: true);
+            if ($this->stock->movementExists($key)) {
+                return ['status' => 'already_processed'];
+            }
+
+            return $operation($order);
+        });
+    }
+
+    private function reservations(array $order): array
+    {
+        $batches = $this->stock->orderReservations($order['id']);
+        if ($batches === [] && $order['source_batch_id'] !== null) {
+            return [['batch_id' => $order['source_batch_id'], 'qty' => $order['qty']]];
+        }
+        if (array_sum(array_column($batches, 'qty')) !== (int) $order['qty']) {
+            throw new ConflictException('Резерв по партиям не совпадает с количеством в заказе.');
+        }
+
+        return $batches;
     }
 
     /** Начисление хранения за дни (сценарий «длительное хранение», вызывается вручную/кроном). */

@@ -10,7 +10,7 @@ final class Network
     {
     }
 
-    public function build(array $snapshot, float $kg): Graph
+    public function build(array $snapshot, float $kg, int $qty = 0): Graph
     {
         $pvzs = $snapshot['pvzs'];
         $hubs = $snapshot['hubs'];
@@ -57,6 +57,18 @@ final class Network
             ];
         };
 
+        foreach ($sellers as $id => $seller) {
+            if (!self::active($seller)) {
+                continue;
+            }
+            foreach ($pvzs as $pointId => $point) {
+                if (self::active($point) && $seller['city_id'] === $point['city_id']
+                    && $point['used_units'] + $qty <= $point['capacity_units']) {
+                    $add("seller:$id", "pvz:$pointId", 'SELLER_DROPOFF', 0, 0, 'Продавец привозит товар в ПВЗ');
+                }
+            }
+        }
+
         foreach ($pvzs as $from => $a) {
             if (!self::active($a)) {
                 continue;
@@ -82,19 +94,15 @@ final class Network
             $add("hub-in:$id", "hub-out:$id", 'HANDLING',
                 $fee['handling_in_cents'] + $fee['sorting_cents'] + $fee['handling_out_cents'],
                 $fee['minutes'], 'Приёмка, сортировка и отгрузка');
-            foreach (['pvz' => $pvzs, 'seller' => $sellers] as $kind => $sources) {
-                foreach ($sources as $source => $point) {
-                    if ($point['city_id'] !== $hub['city_id'] || !self::active($point)) {
-                        continue;
-                    }
-                    $km = self::distance($point, $hub);
-                    [$cost, $minutes] = $local($tariffs['first_mile'], $km);
-                    $add("$kind:$source", "hub-in:$id", 'FIRST_MILE', $cost, $minutes, 'Доставка на хаб');
-                    if ($kind === 'pvz') {
-                        [$cost, $minutes] = $local($tariffs['last_mile'], $km);
-                        $add("hub-out:$id", "delivery:$source", 'LAST_MILE', $cost, $minutes, 'Последняя миля и ПВЗ выдачи');
-                    }
+            foreach ($pvzs as $source => $point) {
+                if ($point['city_id'] !== $hub['city_id'] || !self::active($point)) {
+                    continue;
                 }
+                $km = self::distance($point, $hub);
+                [$cost, $minutes] = $local($tariffs['first_mile'], $km);
+                $add("pvz:$source", "hub-in:$id", 'FIRST_MILE', $cost, $minutes, 'Доставка на хаб');
+                [$cost, $minutes] = $local($tariffs['last_mile'], $km);
+                $add("hub-out:$id", "delivery:$source", 'LAST_MILE', $cost, $minutes, 'Последняя миля и ПВЗ выдачи');
             }
             foreach ($hubs as $to => $other) {
                 if ($other['city_id'] === $hub['city_id'] || !self::active($other)) {

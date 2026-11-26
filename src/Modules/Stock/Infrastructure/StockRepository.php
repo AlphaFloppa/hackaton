@@ -53,19 +53,28 @@ final class StockRepository
         return $row === false ? null : $row;
     }
 
-    /** FIFO: старейшая партия с достаточным остатком на ПВЗ. @return array<string,mixed>|null */
-    public function findBatchForReserve(string $itemId, string $pvzId, int $qty): ?array
+    /** Свободные партии ПВЗ по FIFO, заблокированные до конца операции сборки. */
+    public function batchesForReserve(string $itemId, string $pvzId): array
     {
         $stmt = $this->db->get()->prepare(
-            "SELECT * FROM stock_batches
-             WHERE item_id = ? AND pvz_id = ? AND qty_available >= ? AND status IN ('ON_STORAGE', 'DELIVERED')
-             ORDER BY received_at, id LIMIT 1
-             FOR UPDATE"
+            "SELECT id, qty_available FROM stock_batches
+             WHERE item_id = ? AND pvz_id = ? AND qty_available > 0 AND status IN ('ON_STORAGE', 'DELIVERED')
+             ORDER BY received_at, id FOR UPDATE"
         );
-        $stmt->execute([$itemId, $pvzId, $qty]);
-        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt->execute([$itemId, $pvzId]);
 
-        return $row === false ? null : $row;
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function orderReservations(string $orderId): array
+    {
+        $stmt = $this->db->get()->prepare(
+            "SELECT m.batch_id, m.qty FROM stock_movements m JOIN stock_batches b ON b.id = m.batch_id
+             WHERE m.order_id = ? AND m.type = 'RESERVE' ORDER BY b.received_at, b.id"
+        );
+        $stmt->execute([$orderId]);
+
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     /** @return array<int,array<string,mixed>> */

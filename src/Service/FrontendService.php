@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Infrastructure\Database\ConnectionProvider;
-use Mesh\Routing\NoRoute;
+use App\Modules\Order\Infrastructure\OrderRepository;
 use App\Port\Routing\RoutingModuleInterface;
 use App\Shared\Api\NotFoundException;
+use App\Shared\Api\ValidationException;
 use App\Shared\Time\Clock;
 
 /**
@@ -84,9 +85,12 @@ final class FrontendService
     public function quote(array $q): array
     {
         $itemId = (string) ($q['item_id'] ?? '');
-        $qty = (int) ($q['qty'] ?? 0);
+        $qty = filter_var($q['qty'] ?? null, FILTER_VALIDATE_INT);
         $targetPvzId = (string) ($q['target_pvz_id'] ?? '');
         $preference = strtoupper((string) ($q['preference'] ?? 'COST'));
+        if ($qty === false || $qty < 1) {
+            throw new ValidationException('Количество должно быть целым числом от 1.');
+        }
 
         $pdo = $this->db->get();
         $stmt = $pdo->prepare('SELECT * FROM items WHERE id = ?');
@@ -95,96 +99,10 @@ final class FrontendService
         if ($item === false) {
             throw new NotFoundException("Item $itemId not found");
         }
-        $stmt = $pdo->prepare('SELECT * FROM pvz WHERE id = ?');
-        $stmt->execute([$targetPvzId]);
-        $target = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if ($target === false) {
-            throw new NotFoundException("PVZ $targetPvzId not found");
-        }
-
-        // Источник: ПВЗ с наибольшим доступным остатком товара
-        $stmt = $pdo->prepare(
-            'SELECT p.name, p.id, p.city_id FROM stock_batches b JOIN pvz p ON p.id = b.pvz_id
-             WHERE b.item_id = ? AND b.qty_available >= ? ORDER BY b.qty_available DESC LIMIT 1'
-        );
-        $stmt->execute([$itemId, $qty]);
-        $src = $stmt->fetch(\PDO::FETCH_ASSOC) ?: ['name' => 'Склад продавца', 'id' => null, 'city_id' => null];
-
-        // Расчётный вес как в demo: max(вес, объём × 250)
-        $ch = max((float) $item['weight_kg'] * $qty, (float) $item['volume_m3'] * $qty * 250);
-
-        // Решение через порт маршрутизации (чужой модуль)
-        try {
-            $decision = $this->routing->decide(
-                orderId: '00000000-0000-4000-8000-000000000000',
-                originNodeId: 'SELLER:' . $item['seller_id'],
-                targetPvzId: $targetPvzId,
-                lines: [[
-                    'seller_id' => $item['seller_id'], 'sku' => $item['sku'], 'qty' => $qty,
-                    'weight_kg' => (string) $item['weight_kg'], 'volume_m3' => (string) $item['volume_m3'],
-                ]],
-                preference: $preference,
-            );
-        } catch (NoRoute|\App\Shared\Api\ConflictException $e) {
-            // Блокировка: обе схемы недоступны, возвращаем объяснение (форма контракта модуля)
-            $reason = $e instanceof NoRoute ? $e->quote['reason'] : $e->getMessage();
-            return [
-                'chosen' => null,
-                'reason' => $reason,
-                'block'  => $reason,
-                'mesh'   => [...$this->variantFromArray(null, 'MESH'), 'why' => $reason],
-                'hub'    => [...$this->variantFromArray(null, 'HUB_TRUNK'), 'why' => $reason],
-            ];
-        }
-
-        // Блокировки целевого ПВЗ: недоступен или переполнен
-        $load = $this->pvzLoad((string) $target['id']);
-        $cap = (int) $target['capacity_units'];
-        $full = !$target['is_active'] || $load + $qty > $cap;
-        $block = !$target['is_active']
-            ? 'Целевой ПВЗ недоступен'
-            : ($load + $qty > $cap ? "Целевой ПВЗ заполнен ($load/$cap)" : '');
-        $sameCity = $src['city_id'] !== null && $src['city_id'] === $target['city_id'];
-
-        $meshCost = $decision->costMesh !== null ? (float) $decision->costMesh : null;
-        $meshHours = $decision->timeMesh !== null ? (float) $decision->timeMesh : null;
-        $hubCost = $decision->costHub !== null ? (float) $decision->costHub : null;
-        $hubHours = $decision->timeHub !== null ? (float) $decision->timeHub : null;
-
-        $mesh = [
-            'scheme' => 'MESH',
-            'cost'   => $meshCost,
-            'hours'  => $meshHours,
-            'ok'     => $meshCost !== null && !$full && $sameCity,
-            'why'    => $full ? $block : (!$sameCity ? 'Прямой рейс доступен только внутри города' : 'прямая доставка между ПВЗ'),
-            'segs'   => [
-                ['n' => $src['name'], 'l' => 'партия'],
-                ['n' => $target['name'], 'l' => $this->rub($meshCost) . ' · ' . number_format($meshHours ?? 0, 1) . ' ч', 'e' => 1],
-            ],
-        ];
-        $hub = [
-            'scheme' => 'HUB_TRUNK',
-            'cost'   => $hubCost,
-            'hours'  => $hubHours,
-            'ok'     => $hubCost !== null && !$full,
-            'why'    => $full ? $block : 'через хаб и магистраль',
-            'segs'   => [
-                ['n' => $src['name'], 'l' => 'партия'],
-                ['n' => 'Хаб', 'l' => 'обработка', 'is_stub' => true],
-                ['n' => 'Магистраль', 'l' => $this->rub($hubCost) . ' · ' . number_format($hubHours ?? 0, 1) . ' ч', 'is_stub' => true],
-                ['n' => $target['name'], 'l' => 'последняя миля', 'e' => 1],
-            ],
-        ];
-
-        return [
-            'chosen'  => $decision->scheme,
-            'mesh'    => $mesh,
-            'hub'     => $hub,
-            'srcName' => $src['name'],
-            'ch'      => $ch,
-            'block'   => $block,
-            'reason'  => $decision->reason,
-        ];
+        return $this->routing->quote($targetPvzId, [[
+            'seller_id' => $item['seller_id'], 'sku' => $item['sku'], 'qty' => $qty,
+            'weight_kg' => (string) $item['weight_kg'], 'volume_m3' => (string) $item['volume_m3'],
+        ]], $preference);
     }
 
     /** Остатки товара по ПВЗ в форме UI: {pvz: имя, qty, reserved, age_days}. @return array<int,array<string,mixed>> */
@@ -281,6 +199,21 @@ final class FrontendService
         );
         $stmt->execute([$orderId]);
         $d = $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+        $stmt = $pdo->prepare('SELECT is_stub, breakdown FROM order_segments WHERE order_id = ? ORDER BY seq');
+        $stmt->execute([$orderId]);
+        $segments = [];
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $segment = json_decode($row['breakdown'], true);
+            if (isset($segment['n']) && $segment['n'] !== '') {
+                if ($segments === [] && isset($segment['start']['n'])) {
+                    $segments[] = $segment['start'];
+                }
+                unset($segment['start']);
+                $segments[] = [...$segment, 'is_stub' => (bool) $row['is_stub']];
+            }
+        }
+
         $variants = [];
         foreach (['MESH', 'HUB_TRUNK'] as $scheme) {
             $costKey = $scheme === 'MESH' ? 'cost_mesh' : 'cost_hub';
@@ -293,7 +226,7 @@ final class FrontendService
                 'hours'  => $hours,
                 'ok'     => $cost !== null,
                 'why'    => $d['reason'] ?? '',
-                'segs'   => [],
+                'segs'   => $scheme === $order['chosen'] ? $segments : [],
             ];
         }
 
@@ -322,6 +255,8 @@ final class FrontendService
         $cost = (float) $order['cost'];
 
         $order['variants'] = $variants;
+        $order['segs'] = $segments;
+        $order['reason'] = $d['reason'] ?? $order['reason'];
         $order['incidents'] = $incidents;
         $order['financials'] = [
             'revenue'    => $issued ? $cost : 0,
@@ -345,9 +280,11 @@ final class FrontendService
     private function orderRows(string $where, array $params): array
     {
         $sql = "SELECT o.*, b.pvz_id AS source_pvz_id, d.cost_hub, d.cost_mesh,
+                       leg.from_node AS route_origin, leg.to_node AS route_first_stop,
                        (s.city_id = tp.city_id) AS same_city
                 FROM orders o
                 LEFT JOIN stock_batches b ON b.id = o.source_batch_id
+                LEFT JOIN order_segments leg ON leg.order_id = o.id AND leg.seq = 1
                 LEFT JOIN routing_decisions d ON d.order_id = o.id
                 LEFT JOIN sellers s ON s.id = o.seller_id
                 LEFT JOIN pvz tp ON tp.id = o.target_pvz_id
@@ -364,7 +301,7 @@ final class FrontendService
                 'item'           => $o['item_id'],
                 'qty'            => (int) $o['qty'],
                 'target'         => $o['target_pvz_id'],
-                'source_pvz_id'  => $o['source_pvz_id'] ?? $o['target_pvz_id'],
+                'source_pvz_id'  => $o['source_pvz_id'] ?? OrderRepository::assemblyPoint($o),
                 'status'         => self::STATUS_MAP[$o['status']] ?? $o['status'],
                 'chosen'         => $o['scheme'],
                 'cost'           => (float) $o['delivery_cost'],
@@ -413,11 +350,6 @@ final class FrontendService
         return (new \DateTimeImmutable($ts))->format(\DateTimeInterface::ATOM);
     }
 
-    /** Форматирование суммы для подписей сегментов. */
-    private function rub(?float $n): string
-    {
-        return number_format($n ?? 0, 2, ',', ' ') . ' ₽';
-    }
     // ── Завозы партий (адаптер под UI) ──────────────────────────────────────
 
     /**
@@ -504,14 +436,4 @@ final class FrontendService
         return ['id' => $id, 'name' => $name];
     }
 
-    /** Вариант схемы из массива модуля в форму UI. @return array<string,mixed> */
-    private function variantFromArray(?array $v, string $scheme): array
-    {
-        return [
-            'scheme' => $scheme,
-            'ok'     => ($v['ok'] ?? false) === true && isset($v['cost']),
-            'cost'   => isset($v['cost']) ? (float) $v['cost'] : null,
-            'hours'  => isset($v['hours']) ? (float) $v['hours'] : null,
-        ];
-    }
 }

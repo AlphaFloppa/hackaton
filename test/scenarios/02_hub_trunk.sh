@@ -26,13 +26,11 @@ echo
 
 echo "2) Создание заказа (qty=1, preference=TIME)"
 R=$(curl -sS "$API/orders" -H 'Content-Type: application/json' -H "Idempotency-Key: $K-order" \
-    -d "{\"item_id\":\"$ITEM\",\"qty\":1,\"target_pvz_id\":\"$PVZ\",\"preference\":\"TIME\"}")
+    -d "{\"item_id\":\"$ITEM\",\"qty\":1,\"target_pvz_id\":\"$PVZ\",\"preference\":\"TIME\",\"scheme\":\"HUB_TRUNK\"}")
 echo "$R"
 OID=$(python3 -c 'import json,sys; order = json.load(sys.stdin)["data"]; assert order["scheme"] == "HUB_TRUNK"; print(order["id"])' <<< "$R") || exit 1
 
-echo "3) Приёмка товара в московском ПВЗ для сборки и выдачи"
-receive "$PVZ" target || exit 1
-echo
+echo "3) Сборка в ПВЗ приёмки в Санкт-Петербурге"
 curl -sS -X POST "$API/orders/$OID/assemble" -H "Idempotency-Key: $K-asm"; echo
 
 echo "4) STUB: обработка на хабе (ASSEMBLED -> IN_TRANSIT)"

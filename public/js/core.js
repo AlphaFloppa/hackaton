@@ -69,7 +69,7 @@ const load = (id) =>
     .filter(
       (o) =>
         o.target === id &&
-        (o.status === 'ASSEMBLED' || (o.status === 'CREATED' && o.source_pvz_id !== id)),
+        ['CREATED', 'ASSEMBLED'].includes(o.status),
     )
     .reduce((s, o) => s + o.qty, 0);
 const led = (kind, pvz, amt, why, oid) =>

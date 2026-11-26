@@ -21,28 +21,49 @@ R=$(curl -sS "$API/health")
 check "GET /health" '"status":"ok"' "$R"
 
 # --- фикстуры: товар и ПВЗ ---
-ITEM="00000000-0000-0000-0000-17e500000001"
 SELLER="00000000-0000-0000-0000-5e1100000001"
 PVZ="00000000-0000-0000-0000-f00d00000001"
+SOURCE="00000000-0000-0000-0000-f00d00000002"
 
 # --- создание товара ---
 R=$(curl -sS "$API/items" -H 'Content-Type: application/json' \
     -d "{\"seller_id\":\"$SELLER\",\"sku\":\"SMOKE-$(date +%s)\",\"title\":\"Smoke\",\"weight_kg\":1,\"volume_m3\":0.01}")
 check "POST /items" '"id"' "$R"
+ITEM=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["id"])' <<< "$R" 2>/dev/null || true)
+
+R=$(curl -sS "$API/frontend/quote?item_id=$ITEM&qty=1&target_pvz_id=$PVZ")
+MESH_BLOCKED=$(python3 -c 'import json,sys; quote=json.load(sys.stdin); print(not quote["mesh"]["ok"] and quote["hub"]["ok"])' <<< "$R" 2>/dev/null || true)
+check "Без остатка MESH не предлагается" 'True' "$MESH_BLOCKED"
+R=$(curl -sS -w '\n%{http_code}' "$API/orders" -H 'Content-Type: application/json' -H "Idempotency-Key: smoke-mesh-blocked-$(date +%s)" \
+    -d "{\"item_id\":\"$ITEM\",\"qty\":1,\"target_pvz_id\":\"$PVZ\",\"scheme\":\"MESH\"}")
+check "Явный MESH без остатка -> 409, без смены схемы" '409' "${R##*$'\n'}"
 
 # --- завоз и приёмка ---
 R=$(curl -sS "$API/supplies" -H 'Content-Type: application/json' -H "Idempotency-Key: smoke-sup-$(date +%s)" \
-    -d "{\"seller_id\":\"$SELLER\",\"item_id\":\"$ITEM\",\"pvz_id\":\"$PVZ\",\"qty\":5}")
+    -d "{\"seller_id\":\"$SELLER\",\"item_id\":\"$ITEM\",\"pvz_id\":\"$SOURCE\",\"qty\":5}")
 check "POST /supplies" '"id"' "$R"
 SID=$(echo "$R" | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["id"])' 2>/dev/null || true)
 R=$(curl -sS -X POST "$API/supplies/$SID/accept" -H "Idempotency-Key: smoke-intake-$(date +%s)")
 check "POST /supplies/{id}/accept" 'batch_id' "$R"
 
+R=$(curl -sS "$API/frontend/quote?item_id=$ITEM&qty=1&target_pvz_id=$SOURCE")
+MESH_BLOCKED=$(python3 -c 'import json,sys; print(not json.load(sys.stdin)["mesh"]["ok"])' <<< "$R" 2>/dev/null || true)
+check "MESH недоступен, если остаток только в целевом ПВЗ" 'True' "$MESH_BLOCKED"
+
 # --- заказ ---
 R=$(curl -sS "$API/orders" -H 'Content-Type: application/json' -H "Idempotency-Key: smoke-order-$(date +%s)" \
     -d "{\"item_id\":\"$ITEM\",\"qty\":1,\"target_pvz_id\":\"$PVZ\",\"preference\":\"COST\"}")
-check "POST /orders" '"scheme"' "$R"
+check "POST /orders выбирает MESH при городском остатке" '"scheme":"MESH"' "$R"
 OID=$(echo "$R" | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["id"])' 2>/dev/null || true)
+
+# --- явный выбор и наличие остатков ---
+R=$(curl -sS "$API/orders" -H 'Content-Type: application/json' -H "Idempotency-Key: smoke-hub-$(date +%s)" \
+    -d "{\"item_id\":\"$ITEM\",\"qty\":1,\"target_pvz_id\":\"$PVZ\",\"preference\":\"COST\",\"scheme\":\"HUB_TRUNK\"}")
+check "POST /orders сохраняет явно выбранный HUB_TRUNK" '"scheme":"HUB_TRUNK"' "$R"
+HID=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["id"])' <<< "$R" 2>/dev/null || true)
+R=$(curl -sS "$API/orders/$HID")
+HUB_FROM_SELLER=$(python3 -c 'import json,sys; first=json.load(sys.stdin)["data"]["segments"][0]; print(first["from_node"].startswith("seller:") and first["to_node"].startswith("pvz:"))' <<< "$R" 2>/dev/null || true)
+check "Сохранённый HUB_TRUNK начинается от продавца и ведёт в ПВЗ приёмки" 'True' "$HUB_FROM_SELLER"
 
 # --- сборка / выдача / возврат ---
 R=$(curl -sS -X POST "$API/orders/$OID/assemble" -H "Idempotency-Key: smoke-asm-$(date +%s)")
@@ -61,7 +82,7 @@ R=$(curl -sS "$API/analytics/seller/$SELLER")
 check "GET /analytics/seller/{id}" 'economics' "$R"
 R=$(curl -sS "$API/analytics/pvz/$PVZ")
 check "GET /analytics/pvz/{id}" 'storage' "$R"
-R=$(curl -sS "$API/frontend/analytics/pvz/$PVZ")
+R=$(curl -sS "$API/frontend/analytics/pvz/$SOURCE")
 INTAKE=$(echo "$R" | python3 -c 'import sys,json;print(json.load(sys.stdin)["intake"] > 0)')
 check "Начисление за приёмку видно в аналитике ПВЗ" 'True' "$INTAKE"
 R=$(curl -sS "$API/notifications?pvz_id=$PVZ")

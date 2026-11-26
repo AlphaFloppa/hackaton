@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Port\Routing;
 
 use App\Infrastructure\Database\ConnectionProvider;
+use App\Shared\Api\ConflictException;
 
 /**
  * Stub-реализация контракта маршрутизации. Заменяется настоящим модулем
@@ -17,6 +18,28 @@ final class StubRoutingModule implements RoutingModuleInterface
         private readonly ConnectionProvider $db,
     ) {}
 
+    public function quote(string $targetPvzId, array $lines, string $preference): array
+    {
+        $line = $lines[0];
+        $decision = $this->decide('', 'SELLER:' . $line['seller_id'], $targetPvzId, $lines, $preference);
+
+        return [
+            'chosen' => $decision->scheme,
+            'reason' => $decision->reason,
+            'block' => null,
+            'srcName' => 'Склад продавца',
+            'ch' => max((float) $line['weight_kg'], (float) $line['volume_m3'] * 250) * $line['qty'],
+            'mesh' => [
+                'scheme' => 'MESH', 'ok' => false, 'cost' => null, 'hours' => null,
+                'why' => 'Прямой маршрут не рассчитан.', 'segs' => [],
+            ],
+            'hub' => [
+                'scheme' => 'HUB_TRUNK', 'ok' => true, 'cost' => (float) $decision->costHub,
+                'hours' => (float) $decision->timeHub, 'why' => $decision->reason, 'segs' => [],
+            ],
+        ];
+    }
+
     /** Решение о схеме доставки (контракт модуля маршрутизации). */
     public function decide(
         string $orderId,
@@ -24,6 +47,7 @@ final class StubRoutingModule implements RoutingModuleInterface
         string $targetPvzId,
         array $lines,
         string $preference,
+        ?string $scheme = null,
     ): RoutingDecision {
         $stmt = $this->db->get()->prepare('SELECT city_id FROM pvz WHERE id = ?');
         $stmt->execute([$targetPvzId]);
@@ -32,7 +56,11 @@ final class StubRoutingModule implements RoutingModuleInterface
             throw new \App\Shared\Api\NotFoundException('Target PVZ not found');
         }
 
-        $scheme = str_starts_with($originNodeId, 'PVZ:') && $pvz['city_id'] !== null ? 'MESH' : 'HUB_TRUNK';
+        $available = str_starts_with($originNodeId, 'PVZ:') && $pvz['city_id'] !== null ? 'MESH' : 'HUB_TRUNK';
+        if ($scheme !== null && $scheme !== $available) {
+            throw new ConflictException("Схема $scheme недоступна.");
+        }
+        $scheme = $available;
         $reason = $scheme === 'MESH'
             ? 'Городской заказ: городская mesh-сеть дешевле и быстрее магистрали'
             : 'Межгород: доставка через хаб и магистраль';

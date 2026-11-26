@@ -6,6 +6,12 @@ function orderPayload() {
   return { item_id: item, qty: +qty, target_pvz_id: tgt, preference: pref };
 }
 
+function orderCreationPayload() {
+  const payload = orderPayload();
+  if (UI.pick) payload.scheme = UI.pick;
+  return payload;
+}
+
 function itemPayload() {
   const { name, kg, vol, price } = UI.itemDraft;
   if (!name.trim()) throw E(422, 'Укажите название товара');
@@ -49,11 +55,12 @@ async function remoteAction(action, data) {
   if (!DB && action !== 'health') return;
   if (action === 'pick') {
     A.pick(data);
+    render();
     return;
   }
   const id = data.id;
   const operations = {
-    mk: () => ['/orders', orderPayload(), 'Заказ создан'],
+    mk: () => ['/orders', orderCreationPayload(), 'Заказ создан'],
     newitem: () => ['/items', itemPayload(), 'Товар создан'],
     supply: () => ['/supplies', supplyPayload(), 'Завоз объявлен'],
     accept: (d) => [`/supplies/${d.id}/accept`, {}, 'Завоз принят'],
@@ -93,7 +100,10 @@ async function remoteAction(action, data) {
     } else {
       const [path, payload, message] = operations[action](data);
       const result = await request('POST', path, payload);
-      if (action === 'mk') UI.sel = result?.id ?? result?.order_id ?? result?.data?.id ?? null;
+      if (action === 'mk') {
+        UI.sel = result?.id ?? result?.order_id ?? result?.data?.id ?? null;
+        UI.pick = null;
+      }
       if (action === 'newitem') UI.itemDraft.name = '';
       UI.q = null;
       M(message, true);
@@ -125,19 +135,10 @@ const res = (r, okT) =>
   );
 const A = {
   pick: (d) => {
-    // Выбор схемы доставки: подсветка карточки + подгонка приоритета под выбранную схему,
-    // чтобы серверный Router действительно её выбрал.
+    const option = [UI.q?.mesh, UI.q?.hub].find((v) => v?.scheme === d.scheme);
+    if (!option?.ok) return;
     UI.pick = d.scheme;
-    const q = UI.q;
-    if (q) {
-      const v = d.scheme === 'MESH' ? q.mesh : q.hub;
-      const alt = d.scheme === 'MESH' ? q.hub : q.mesh;
-      if (v.ok && alt.ok) {
-        UI.f.pref = v.cost <= alt.cost ? 'COST' : 'TIME';
-      }
-    }
     UI.msg = null;
-    render();
   },
   role: (d) => {
     UI.role = d.v;
@@ -187,26 +188,24 @@ const A = {
     res(call('POST', '/orders', {}), '');
   },
   calc: () => {
-    UI.pick = null;
-    const f = UI.f;
     try {
       const input = orderPayload();
-      const q = quote(it(input.item_id), input.qty, pv(input.target_pvz_id)),
-        ok = [q.mesh, q.hub].filter((v) => v.ok);
-      q.win = ok.sort((a, c) => (f.pref === 'COST' ? a.cost - c.cost : a.hours - c.hours))[0];
+      const q = quote(it(input.item_id), input.qty, pv(input.target_pvz_id));
+      q.win = recommendedRoute(q, input.preference);
       UI.q = q;
-      UI.msg = ok.length ? null : { t: q.block, ok: 0 };
+      UI.msg = q.win ? null : { t: q.block, ok: 0 };
     } catch (e) {
       M(e.message, 0);
     }
   },
   mk: () => {
-    const r = call('POST', '/orders', orderPayload(), uid());
+    const r = call('POST', '/orders', orderCreationPayload(), uid());
     res(r, 'Заказ создан');
     if (r.status < 300) {
       UI.exampleOpen = false;
       UI.sel = r.data.id;
       UI.q = null;
+      UI.pick = null;
     }
   },
   newitem: () => {
@@ -260,14 +259,13 @@ function updateField(element) {
   if (!key || busy) return;
   if (key === 'pvz') UI.pvz = element.value;
   else UI.f[key] = element.value;
-  // Смена приоритета не требует нового запроса: пересчитываем выигрышную схему по сохранённому расчёту
-  if (key === 'pref' && UI.q && UI.q.mesh && UI.q.hub) {
-    const pick = [UI.q.mesh, UI.q.hub].filter((v) => v.ok)
-      .sort((a, c) => (UI.f.pref === 'COST' ? a.cost - c.cost : a.hours - c.hours))[0];
-    UI.q.win = pick;
-    return;
+  if (['item', 'qty', 'tgt'].includes(key)) {
+    UI.pick = null;
+    UI.q = null;
+  } else if (key === 'pref') {
+    if (apiBase) UI.q = null;
+    else if (UI.q) UI.q.win = recommendedRoute(UI.q, UI.f.pref);
   }
-  UI.q = null;
 }
 
 function updateOrderFilter(control) {
@@ -284,7 +282,10 @@ document.addEventListener('input', (event) => {
   if (field) UI.itemDraft[field] = event.target.value;
   if (event.target.matches('input[data-f]')) {
     updateField(event.target);
-    $('#route-preview')?.replaceChildren();
+    if (event.target.dataset.f === 'qty') {
+      $('#route-preview').innerHTML = orderPreview();
+      $('[data-a="mk"]').textContent = 'Создать заказ';
+    }
   }
 });
 document.addEventListener('change', (event) => {
@@ -294,16 +295,7 @@ document.addEventListener('change', (event) => {
   }
   if (!event.target.matches('select[data-f]') || busy) return;
   updateField(event.target);
-  // Явный обработчик приоритета: пересчёт выигрышной схемы и перерисовка карточек
-  if (event.target.dataset.f === 'pref' && UI.q && UI.q.mesh && UI.q.hub) {
-    const pick = [UI.q.mesh, UI.q.hub].filter((v) => v.ok)
-      .sort((a, c) => (UI.f.pref === 'COST' ? a.cost - c.cost : a.hours - c.hours))[0];
-    UI.q.win = pick;
-    UI.msg = null;
-    render();
-    return;
-  }
-  if (apiBase && event.target.dataset.f === 'pvz') refresh();
+  if (apiBase && ['pvz', 'item', 'tgt', 'pref'].includes(event.target.dataset.f)) refresh();
   else render();
 });
 

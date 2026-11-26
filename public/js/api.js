@@ -111,6 +111,7 @@ async function refresh(bootstrap = false) {
       if (!DB.orders.some((order) => order.id === UI.sel)) UI.sel = null;
     }
     const requests = [];
+    let quoteQuery;
     if (UI.role === 'S') {
       if (UI.tab.S === 'items') {
         requests.push(...DB.items.map((item) => [`/items/${item.id}/batches`]));
@@ -120,13 +121,10 @@ async function refresh(bootstrap = false) {
       if (UI.tab.S === 'order') {
         requests.push(['/supplies']); // блок завозов на вкладке заказа
         // карточки схем видны сразу: авто-расчёт по текущим полям формы
-        if (it(UI.f.item) && pv(UI.f.tgt) && Number(UI.f.qty) >= 1) {
-          requests.push(['/frontend/quote', {
-            item_id: UI.f.item,
-            qty: Number(UI.f.qty),
-            target_pvz_id: UI.f.tgt,
-            preference: UI.f.pref,
-          }]);
+        const qty = Number(UI.f.qty);
+        if (it(UI.f.item) && pv(UI.f.tgt) && Number.isSafeInteger(qty) && qty >= 1) {
+          quoteQuery = orderPayload();
+          requests.push(['/frontend/quote', quoteQuery]);
         }
         if (UI.sel) requests.push([`/orders/${UI.sel}`]);
       }
@@ -146,14 +144,10 @@ async function refresh(bootstrap = false) {
       ]),
     );
     screenData = new Map(entries);
-    // автовосстановление карточек схем из prefetch-расчёта (если нет свежего UI.q)
-    const autoQuote = screenData.get('/frontend/quote?' + new URLSearchParams({
-      item_id: UI.f.item, qty: Number(UI.f.qty), target_pvz_id: UI.f.tgt, preference: UI.f.pref,
-    }));
-    if (autoQuote && (!UI.q || UI.q.auto)) {
+    if (quoteQuery) {
+      const autoQuote = screenData.get(cacheKey('/frontend/quote', quoteQuery));
       UI.q = {
         ...autoQuote,
-        auto: true,
         win: [autoQuote.mesh, autoQuote.hub].find((v) => v?.ok && v.scheme === autoQuote.chosen),
       };
     }

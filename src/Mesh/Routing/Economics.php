@@ -67,11 +67,18 @@ final class Economics
         $target = $request['target_pvz_id'];
         $price = $this->itemTotal($snapshot['item'], 'unit_price_cents', $qty);
         $cogs = $this->itemTotal($snapshot['item'], 'unit_cogs_cents', $qty);
+        $legs = ['MESH' => 0, 'SELLER_DROPOFF' => 0, 'FIRST_MILE' => 0, 'LAST_MILE' => 0, 'HANDLING' => 0, 'TRUNK' => 0];
+        $intakePoint = $source['kind'] === 'PVZ' ? $source['location_id'] : null;
+        foreach ($path['path'] as $edge) {
+            $legs[$edge['kind']] += $edge['cost'];
+            if ($edge['kind'] === 'SELLER_DROPOFF') {
+                $intakePoint = substr($edge['to'], strlen('pvz:'));
+            }
+        }
         $pvzFees = [];
-        if ($source['kind'] === 'PVZ') {
-            $id = $source['location_id'];
-            $fees = array_replace($t['pvz'], $snapshot['pvzs'][$id]['fees'] ?? []);
-            $pvzFees[$id] = [
+        if ($intakePoint !== null) {
+            $fees = array_replace($t['pvz'], $snapshot['pvzs'][$intakePoint]['fees'] ?? []);
+            $pvzFees[$intakePoint] = [
                 'intake_cents' => $fees['intake_unit_cents'] * $qty,
                 'assembly_cents' => $fees['assembly_order_cents'],
                 'storage_cents' => $scheme === 'MESH' ? $fees['storage_unit_day_cents'] * $qty * $days : 0,
@@ -90,10 +97,6 @@ final class Economics
         }
         unset($fees);
 
-        $legs = ['MESH' => 0, 'FIRST_MILE' => 0, 'LAST_MILE' => 0, 'HANDLING' => 0, 'TRUNK' => 0];
-        foreach ($path['path'] as $edge) {
-            $legs[$edge['kind']] += $edge['cost'];
-        }
         $risk = $a['risk'][$scheme];
         $expectedReturns = self::basisPoints($risk['return_cents'], $risk['return_bps']);
         $expectedIncidents = self::basisPoints($risk['incident_cents'], $risk['incident_bps']);

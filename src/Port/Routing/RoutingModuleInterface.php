@@ -11,6 +11,9 @@ namespace App\Port\Routing;
  */
 interface RoutingModuleInterface
 {
+    /** Обе схемы и их доступность для текущих остатков. */
+    public function quote(string $targetPvzId, array $lines, string $preference): array;
+
     /**
      * Решает схему доставки и возвращает полное решение с посегментной детализацией.
      *
@@ -19,6 +22,7 @@ interface RoutingModuleInterface
      * @param string $targetPvzId    UUID целевого ПВЗ
      * @param array<int,array{seller_id:string,sku:string,qty:int,weight_kg:string,volume_m3:string}> $lines позиции заказа
      * @param string $preference    COST|TIME
+     * @param string|null $scheme   MESH|HUB_TRUNK; null оставляет автоматический выбор
      */
     public function decide(
         string $orderId,
@@ -26,5 +30,6 @@ interface RoutingModuleInterface
         string $targetPvzId,
         array $lines,
         string $preference,
+        ?string $scheme = null,
     ): RoutingDecision;
 }

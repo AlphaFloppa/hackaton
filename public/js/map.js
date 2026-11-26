@@ -144,9 +144,12 @@ function mountDeliveryMap() {
   const supplied = normalizeRoad(order.route_geometry);
   const resolveStop = (stop) =>
     coordinates(stop) || coordinates(DB.pvz.find((point) => point.name === stop?.n));
-  const source = pv(order.source_pvz_id);
+  const sellerDropOff = stops[0]?.kind === 'SELLER';
+  const startIndex = sellerDropOff ? 1 : 0;
+  const firstStop = stops[startIndex];
+  const source = firstStop ? DB.pvz.find((point) => point.name === firstStop.n) : pv(order.source_pvz_id);
   const target = pv(order.target ?? order.target_pvz_id);
-  const start = coordinates(source) || resolveStop(stops[0]) || supplied[0];
+  const start = coordinates(source) || resolveStop(firstStop) || supplied[0];
   const end = coordinates(target) || resolveStop(stops.at(-1)) || supplied.at(-1);
   if (!start || !end) {
     element.hidden = true;
@@ -155,7 +158,7 @@ function mountDeliveryMap() {
   }
 
   const middle = stops
-    .slice(1, -1)
+    .slice(startIndex + 1, -1)
     .map((stop) => ({
       name: stop.n,
       address: stop.address ?? DB.pvz.find((point) => point.name === stop.n)?.address,
@@ -191,9 +194,9 @@ function mountDeliveryMap() {
     });
   const pins = [
     {
-      label: 'Отправление',
-      name: source?.name ?? stops[0]?.n,
-      address: source?.address ?? stops[0]?.address,
+      label: sellerDropOff ? 'ПВЗ приёмки' : 'Отправление',
+      name: source?.name ?? firstStop?.n,
+      address: source?.address ?? firstStop?.address,
       point: start,
     },
     ...middle,

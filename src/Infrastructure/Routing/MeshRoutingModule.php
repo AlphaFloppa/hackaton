@@ -7,8 +7,9 @@ namespace App\Infrastructure\Routing;
 use App\Infrastructure\Database\ConnectionProvider;
 use App\Port\Routing\RoutingModuleInterface;
 use App\Port\Routing\RoutingDecision;
+use App\Shared\Api\ConflictException;
 use App\Shared\Api\NotFoundException;
-use Mesh\Routing\NoRoute;
+use App\Shared\Api\ValidationException;
 use Mesh\Routing\Router;
 
 /**
@@ -24,17 +25,73 @@ final class MeshRoutingModule implements RoutingModuleInterface
         private readonly ConnectionProvider $db,
     ) {}
 
-    /** @return RoutingDecision */
+    public function quote(string $targetPvzId, array $lines, string $preference): array
+    {
+        return $this->plan($targetPvzId, $lines, $preference)['quote'];
+    }
+
     public function decide(
         string $orderId,
         string $originNodeId,
         string $targetPvzId,
         array $lines,
         string $preference,
+        ?string $scheme = null,
     ): RoutingDecision {
-        $line = $lines[0] ?? throw new \App\Shared\Api\ValidationException('Routing requires at least one line');
+        $plan = $this->plan($targetPvzId, $lines, $preference, $scheme);
+        $quote = $plan['quote'];
+        if ($plan['selected'] === null) {
+            throw new ConflictException($quote['reason']);
+        }
+
+        $key = $quote['chosen'] === 'MESH' ? 'mesh' : 'hub';
+        $stops = $quote[$key]['segs'];
+        $segments = [];
+        foreach ($plan['selected']['path'] as $i => $edge) {
+            $stop = $stops[$i + 1];
+            if ($i === 0) {
+                $stop['start'] = $stops[0];
+            }
+            $segments[] = [
+                'seq' => $i + 1,
+                'mode' => match ($edge['kind']) {
+                    'MESH' => 'LOCAL_MESH',
+                    'TRUNK' => 'TRUNK',
+                    'LAST_MILE' => 'LAST_MILE',
+                    default => 'SELLER_TO_HUB',
+                },
+                'from_node' => $edge['from'],
+                'to_node' => $edge['to'],
+                'distance_km' => '0.00',
+                'time_min' => '0.00',
+                'cost_transport' => '0.00',
+                'cost_handling' => '0.00',
+                'cost_hub_fee' => '0.00',
+                'cost_risk' => '0.00',
+                'is_stub' => (bool) ($stop['is_stub'] ?? false),
+                'breakdown' => $stop,
+            ];
+        }
+
+        return new RoutingDecision(
+            scheme: $quote['chosen'],
+            reason: $quote['reason'],
+            costMesh: $quote['mesh']['ok'] ? number_format($quote['mesh']['cost'], 2, '.', '') : null,
+            costHub: $quote['hub']['ok'] ? number_format($quote['hub']['cost'], 2, '.', '') : null,
+            timeMesh: $quote['mesh']['ok'] ? number_format($quote['mesh']['hours'], 2, '.', '') : null,
+            timeHub: $quote['hub']['ok'] ? number_format($quote['hub']['hours'], 2, '.', '') : null,
+            segments: $segments,
+        );
+    }
+
+    private function plan(string $targetPvzId, array $lines, string $preference, ?string $scheme = null): array
+    {
+        $line = $lines[0] ?? throw new ValidationException('Routing requires at least one line');
 
         $snapshot = $this->snapshot((string) $line['seller_id']);
+        if (!isset($snapshot['pvzs'][$targetPvzId])) {
+            throw new NotFoundException('Целевой ПВЗ не найден.');
+        }
         $item = null;
         foreach ($snapshot['items'] as $row) {
             if ($row['sku'] === $line['sku'] || $row['id'] === $line['sku']) {
@@ -50,67 +107,26 @@ final class MeshRoutingModule implements RoutingModuleInterface
             $snapshot['stock'],
             static fn (array $row): bool => $row['item_id'] === $item['id'],
         ));
-        // Продавец может создать заказ в любой момент: если остатков в сети нет,
-        // источник — склад продавца (kind SELLER). ПВЗ примет партию по завозу позже.
-        if ($snapshot['stock'] === []) {
-            $snapshot['stock'][] = [
-                'batch_id' => '00000000-0000-4000-8000-seller-virtual',
-                'item_id' => $item['id'], 'kind' => 'SELLER', 'location_id' => (string) $line['seller_id'],
-                'available_qty' => (int) $line['qty'],
-                'received_at' => gmdate('Y-m-d\TH:i:s\Z'),
-            ];
-        }
+        // Для HUB_TRUNK продавец привозит товар сам: этот источник не зависит от остатков ПВЗ.
+        $snapshot['stock'][] = [
+            'batch_id' => '00000000-0000-4000-8000-seller-virtual',
+            'item_id' => $item['id'], 'kind' => 'SELLER', 'location_id' => (string) $line['seller_id'],
+            'available_qty' => (int) $line['qty'],
+        ];
 
         $request = [
             'item_id' => $item['id'],
             'qty' => (int) $line['qty'],
             'target_pvz_id' => $targetPvzId,
             'preference' => $preference,
+            'scheme' => $scheme,
         ];
 
-        $plan = (new Router(require self::MODEL_PATH))->plan($request, $snapshot);
-
-        if ($plan['selected'] === null) {
-            $quote = $plan['quote'];
-            throw new \App\Shared\Api\ConflictException($quote['reason']);
+        try {
+            return (new Router(require self::MODEL_PATH))->plan($request, $snapshot);
+        } catch (\InvalidArgumentException $e) {
+            throw new ValidationException($e->getMessage());
         }
-
-        $quote = $plan['quote'];
-        $key = $quote['chosen'] === 'MESH' ? 'mesh' : 'hub';
-        $chosen = $quote[$key];
-
-        // Сегменты в форме RoutingDecision (форма UI-контракта: n/l/is_stub/e собираются ниже во FrontendService)
-        $segments = [];
-        foreach ($chosen['segs'] as $i => $seg) {
-            $segments[] = [
-                'seq' => $i + 1,
-                'mode' => $seg['mode'] ?? ($quote['chosen'] === 'MESH' ? 'LOCAL_MESH' : 'TRUNK'),
-                'from_node' => $seg['from'] ?? '',
-                'to_node' => $seg['to'] ?? '',
-                'distance_km' => '0.00',
-                'time_min' => '0.00',
-                'cost_transport' => '0.00',
-                'cost_handling' => '0.00',
-                'cost_hub_fee' => '0.00',
-                'cost_risk' => '0.00',
-                'is_stub' => (bool) ($seg['is_stub'] ?? false),
-                'breakdown' => ['n' => $seg['n'] ?? '', 'l' => $seg['l'] ?? '', 'e' => $seg['e'] ?? 0],
-            ];
-        }
-
-        $cost = (float) ($chosen['cost'] ?? 0);
-        $hours = (float) ($chosen['hours'] ?? 0);
-        $hub = $quote['hub'];
-
-        return new RoutingDecision(
-            scheme: $quote['chosen'],
-            reason: $quote['reason'],
-            costMesh: $quote['mesh']['ok'] ? number_format((float) $quote['mesh']['cost'], 2, '.', '') : null,
-            costHub: $hub['ok'] ? number_format((float) $hub['cost'], 2, '.', '') : null,
-            timeMesh: $quote['mesh']['ok'] ? number_format((float) $quote['mesh']['hours'], 2, '.', '') : null,
-            timeHub: $hub['ok'] ? number_format((float) $hub['hours'], 2, '.', '') : null,
-            segments: $segments,
-        );
     }
 
     /**
@@ -125,7 +141,6 @@ final class MeshRoutingModule implements RoutingModuleInterface
         $stmt->execute();
         $pvzs = [];
         foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $p) {
-            $used = (int) $p['capacity_units'];
             $pvzs[$p['id']] = [
                 'name' => $p['name'], 'city_id' => $p['city_id'], 'address' => $p['address'],
                 'lat' => (float) $p['lat'], 'lng' => (float) $p['lng'],
@@ -141,8 +156,6 @@ final class MeshRoutingModule implements RoutingModuleInterface
                     'storage_unit_day_cents' => (int) round($p['fee_storage_day'] * 100),
                 ],
             ];
-            // used_units считается по фактическим партиям ниже, placeholder
-            $pvzs[$p['id']]['_cap'] = $used;
         }
 
         $stmt = $pdo->prepare('SELECT * FROM items WHERE seller_id = ?');
@@ -155,17 +168,12 @@ final class MeshRoutingModule implements RoutingModuleInterface
             ];
         }
 
-        $stmt = $pdo->prepare('SELECT c.id, c.code, c.name FROM cities c JOIN sellers s ON s.city_id = c.id WHERE s.id = ?');
+        $stmt = $pdo->prepare('SELECT s.city_id, s.name FROM sellers s WHERE s.id = ? AND s.city_id IS NOT NULL');
         $stmt->execute([$sellerId]);
         $sellers = [];
         foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $s) {
-            // координаты города как источник первой мили (у продавца в БД нет lat/lng)
-            $stmt2 = $pdo->prepare('SELECT lat, lng FROM pvz WHERE city_id = ? LIMIT 1');
-            $stmt2->execute([$s['id']]);
-            $geo = $stmt2->fetch(\PDO::FETCH_ASSOC) ?: ['lat' => 0, 'lng' => 0];
             $sellers[$sellerId] = [
-                'name' => $s['name'], 'city_id' => $s['id'],
-                'lat' => (float) $geo['lat'], 'lng' => (float) $geo['lng'], 'is_active' => true,
+                'name' => $s['name'], 'city_id' => $s['city_id'], 'is_active' => true,
             ];
         }
 
@@ -181,22 +189,24 @@ final class MeshRoutingModule implements RoutingModuleInterface
             ];
         }
 
-        // Партии с доступным остатком (за вычетом резерва)
-        $stmt = $pdo->prepare(
-            "SELECT b.id, b.item_id, b.pvz_id, b.qty_available - b.qty_reserved AS avail, b.received_at
-             FROM stock_batches b WHERE b.qty_available - b.qty_reserved > 0"
+        // qty_available уже уменьшен на резерв; для вместимости учитываются и зарезервированные единицы.
+        $stmt = $pdo->query(
+            "SELECT id, item_id, pvz_id, qty_available, qty_reserved, received_at, status
+             FROM stock_batches
+             WHERE status IN ('ON_STORAGE', 'DELIVERED', 'IN_TRANSIT') AND qty_available + qty_reserved > 0"
         );
-        $stmt->execute();
         $stock = [];
         foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $b) {
+            $pointId = $b['pvz_id'];
+            $pvzs[$pointId]['used_units'] += (int) $b['qty_available'] + (int) $b['qty_reserved'];
+            if ($b['status'] === 'IN_TRANSIT' || (int) $b['qty_available'] === 0 || !$pvzs[$pointId]['is_active']) {
+                continue;
+            }
             $stock[] = [
                 'batch_id' => $b['id'], 'item_id' => $b['item_id'], 'kind' => 'PVZ',
-                'location_id' => $b['pvz_id'], 'available_qty' => (int) $b['avail'],
+                'location_id' => $pointId, 'available_qty' => (int) $b['qty_available'],
                 'received_at' => gmdate('Y-m-d\TH:i:s\Z', strtotime($b['received_at'])),
             ];
-            if (isset($pvzs[$b['pvz_id']])) {
-                $pvzs[$b['pvz_id']]['used_units'] += (int) $b['avail'];
-            }
         }
 
         return ['items' => $items, 'pvzs' => $pvzs, 'hubs' => $hubs, 'sellers' => $sellers, 'stock' => $stock];

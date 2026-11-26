@@ -16,7 +16,12 @@ function variant(v, win) {
   const pickable = arguments[2] !== false;
   const picked = pickable && UI.pick === v.scheme;
   const cls = `${v.ok && picked ? 'picked' : ''}`;
-  return `<div class="v ${win ? 'win' : ''} ${cls} ${v.ok ? '' : 'no'}" ${pickable && v.ok ? `data-a="pick" data-scheme="${esc(v.scheme)}" title="Нажмите, чтобы выбрать ${esc(v.scheme)}" tabindex="0" role="button"` : ''}><div class="row" style="margin:0;justify-content:space-between"><b>${esc(v.scheme)}</b>${win ? chip('рекомендуется', 'ac') : picked ? chip('выбрана', 'ac') : v.ok ? '' : chip('недоступно', 'er')}</div>
+  const badge = !v.ok
+    ? chip('недоступно', 'er')
+    : picked || (win && !pickable)
+      ? chip('выбрана', 'ac')
+      : win ? chip('рекомендуется', 'ac') : '';
+  return `<div class="v ${win ? 'win' : ''} ${cls} ${v.ok ? '' : 'no'}" ${pickable && v.ok ? `data-a="pick" data-scheme="${esc(v.scheme)}" title="Нажмите, чтобы выбрать ${esc(v.scheme)}" tabindex="0" role="button" aria-pressed="${picked}"` : ''}><div class="row" style="margin:0;justify-content:space-between"><b>${esc(v.scheme)}</b>${badge}</div>
  ${variantBody(v, arguments[3] ?? 'COST')}${route(v.segs)}</div>`;
 }
 // Ключевая метрика карточки по приоритету: COST — цена крупно наверху, TIME — срок крупно наверху, вторая метрика мелкой.
@@ -162,6 +167,7 @@ function orderList() {
 }
 
 function orderDetails(order, example = false) {
+  const hub = order.variants?.hub ?? order.variants?.hub_trunk;
   return `<section class="c tracking-card" id="order-tracker">
           <div class="tracking-heading"><h3>${example ? 'Пример доставки' : `Заказ ${esc(sh(order.id))} · отслеживание`}</h3>${chip(esc(order.chosen), 'ac')}
             ${example ? '<button class="b" type="button" data-a="closeExample">Закрыть пример</button>' : ''}
@@ -173,7 +179,7 @@ function orderDetails(order, example = false) {
             ${example ? '' : `· ID ${esc(order.id)}`}
           </p>
           ${orderFinancials(order)}
-          ${order.variants?.mesh && order.variants?.hub ? `<div class="g">${variant(order.variants.mesh, order.chosen === 'MESH', false)}${variant(order.variants.hub, order.chosen === 'HUB_TRUNK', false)}</div>` : ''}
+          ${order.variants?.mesh && hub ? `<div class="g">${variant(order.variants.mesh, order.chosen === 'MESH', false)}${variant(hub, order.chosen === 'HUB_TRUNK', false)}</div>` : ''}
         </section>`;
 }
 

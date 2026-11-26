@@ -10,7 +10,7 @@ final class Router
 {
     private const KINDS = [
         'mesh' => ['MESH'],
-        'hub' => ['FIRST_MILE', 'HANDLING', 'TRUNK', 'LAST_MILE'],
+        'hub' => ['SELLER_DROPOFF', 'FIRST_MILE', 'HANDLING', 'TRUNK', 'LAST_MILE'],
     ];
     private const SCHEMES = ['mesh' => 'MESH', 'hub' => 'HUB_TRUNK'];
 
@@ -38,7 +38,7 @@ final class Router
             (float) $item['kg'] * $qty,
             (float) $item['volume_m3'] * $qty * $this->model['assumptions']['volumetric_kg_per_m3'],
         );
-        $graph = (new Network($this->model))->build($snapshot, $kg);
+        $graph = (new Network($this->model))->build($snapshot, $kg, $qty);
         $sources = $progress === null ? $this->origins($snapshot, $qty) : [$this->position($progress, $snapshot)];
         $spent = $this->integer($progress['spent_cents'] ?? 0, 'spent_cents', 0, 100_000_000_000_000_000);
         $elapsed = $this->integer($progress['elapsed_minutes'] ?? 0, 'elapsed_minutes', 0, 10_000_000);
@@ -48,25 +48,27 @@ final class Router
         $comparators = [];
         $variants = [];
         $free = $target['capacity_units'] - $target['used_units'];
-        $room = false;
-
         foreach (self::KINDS as $key => $kinds) {
             $best = null;
             $outsideSla = null;
-            $permittedOrd = false;
+            $hasSource = false;
+            $room = false;
             if (Network::active($target)) {
                 foreach ($sources as $source) {
+                    $sameCity = $source['city'] === $target['city_id'];
+                    if ($key === 'mesh' && (($source['current_city'] ?? $source['city']) !== $target['city_id']
+                        || $source['kind'] !== 'PVZ' || $source['location_id'] === $targetId)) {
+                        continue;
+                    }
+                    if ($key === 'hub' && $progress === null && $source['kind'] !== 'SELLER') {
+                        continue;
+                    }
+                    $hasSource = true;
                     $added = $source['node'] === "pvz:$targetId" ? 0 : $qty - $reserved;
                     if ($added > 0 && $added > $free) {
                         continue;
                     }
                     $room = true;
-                    $sameCity = $source['city'] === $target['city_id'];
-                    if ($key === 'mesh' && (($source['current_city'] ?? $source['city']) !== $target['city_id']
-                        || $source['kind'] !== 'PVZ')) {
-                        continue;
-                    }
-                    $permittedOrd = true;
                     $sla = $this->sla($target, $sameCity);
                     $destination = $key === 'mesh' ? "pvz:$targetId" : "delivery:$targetId";
                     $limit = $sla * 60 - $elapsed;
@@ -89,9 +91,7 @@ final class Router
             $comparators[$key] = $best ?? $outsideSla;
             if ($best !== null) {
                 $why = $key === 'hub' ? 'Доставка через хаб' : 'Доставка между ПВЗ одного города';
-                if ($best['path'] === []) {
-                    $why = 'Товар уже в целевом ПВЗ';
-                } elseif (in_array('TRUNK', array_column($best['path'], 'kind'), true)) {
+                if (in_array('TRUNK', array_column($best['path'], 'kind'), true)) {
                     $why = 'Доставка через хабы и магистраль';
                 }
                 $segments = $this->joinSegments($completed, $graph->segments($best['source']['node'], $best['path']));
@@ -104,9 +104,10 @@ final class Router
 
             $why = match (true) {
                 !Network::active($target) => 'Целевой ПВЗ недоступен.',
-                $sources === [] => 'Недостаточно доступного остатка в одной точке отправления.',
+                !$hasSource && $key === 'mesh' => "В городе выдачи нет другого активного ПВЗ с доступным остатком от $qty ед.",
+                !$hasSource && $progress === null => 'Не указан город продавца.',
+                !$hasSource => 'Недостаточно доступного остатка в одной точке отправления.',
                 !$room => sprintf('В целевом ПВЗ недостаточно места (%d/%d занято).', $target['used_units'], $target['capacity_units']),
-                !$permittedOrd => 'Mesh доступен между ПВЗ одного города.',
                 $outsideSla !== null => sprintf('Даже самый быстрый путь занимает %.1f ч при SLA %d ч.',
                     self::hours($outsideSla['minutes']), $outsideSla['sla']),
                 default => 'Связный путь по доступным плечам не найден.',
@@ -120,8 +121,16 @@ final class Router
             $chosenKey = 'hub';
         }
 
-        $chosen = $chosenKey === null ? null : $paths[$chosenKey];
         $reason = $this->reason($chosenKey, $paths, $variants, $request['preference']);
+        if ($request['scheme'] !== null) {
+            $scheme = $request['scheme'];
+            $key = $scheme === 'MESH' ? 'mesh' : 'hub';
+            $chosenKey = $paths[$key] === null ? null : $key;
+            $reason = $chosenKey === null
+                ? "Схема $scheme недоступна. " . $variants[$key]['why']
+                : "Схема $scheme выбрана продавцом. " . $variants[$key]['why'];
+        }
+        $chosen = $chosenKey === null ? null : $paths[$chosenKey];
         $base = $comparators['hub'] === null ? null : self::rubles($comparators['hub']['cost']);
         $calcs = (new Economics($this->model))->compare($request, $snapshot, $comparators, $paths);
 
@@ -169,6 +178,10 @@ final class Router
         if (!in_array($preference, ['COST', 'TIME'], true)) {
             throw new InvalidArgumentException('Приоритет должен быть COST или TIME.');
         }
+        $scheme = $request['scheme'] ?? null;
+        if ($scheme !== null && !in_array($scheme, self::SCHEMES, true)) {
+            throw new InvalidArgumentException('Схема должна быть MESH или HUB_TRUNK.');
+        }
         $kg = $item['kg'] ?? null;
         $volume = $item['volume_m3'] ?? null;
         if (!is_numeric($kg) || !is_numeric($volume)
@@ -183,6 +196,7 @@ final class Router
             'target_pvz_id' => $request['target_pvz_id'],
             'qty' => $this->integer($request['qty'] ?? null, 'qty', 1, 1_000_000),
             'preference' => $preference,
+            'scheme' => $scheme,
             'storage_days' => $this->integer($request['storage_days'] ?? $this->model['assumptions']['default_storage_days'],
                 'storage_days', 0, 3650),
         ];

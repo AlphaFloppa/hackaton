@@ -33,7 +33,11 @@ final class Graph
     public function segments(string $source, array $path): array
     {
         $start = $this->nodes[$source];
-        $segments = [['n' => $start['name'], 'l' => $path === [] ? 'Выдача товара из остатков ПВЗ' : 'Точка отправления']];
+        $segments = [[
+            'n' => $start['kind'] === 'SELLER' ? 'Продавец · ' . $start['name'] : $start['name'],
+            'l' => $path === [] ? 'Выдача товара из остатков ПВЗ' : 'Точка отправления',
+            'kind' => $start['kind'],
+        ]];
         if (in_array($start['kind'], ['HUB_IN', 'HUB_OUT'], true)) {
             $segments[0]['is_stub'] = true;
         }

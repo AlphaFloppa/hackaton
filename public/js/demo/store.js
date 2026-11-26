@@ -45,7 +45,7 @@ function seed() {
       { id: uid(), city: C.m.id, name: 'Хаб Москва', is_stub: true },
       { id: uid(), city: C.s.id, name: 'Хаб СПб', is_stub: true },
     ],
-    seller: { id: uid(), name: 'ИП Орлов' },
+    seller: { id: uid(), name: 'ИП Орлов', city_id: C.m.id },
     items,
     batches: [
       bt(0, 0, 40, 1),
@@ -75,6 +75,7 @@ function seed() {
   };
   UI.keys = {};
   UI.q = null;
+  UI.pick = null;
   UI.sel = null;
   UI.exampleOpen = false;
   UI.playExample = false;
@@ -83,91 +84,100 @@ const demoHubPositions = {
   MSK: { lat: 55.73, lng: 37.67 },
   SPB: { lat: 59.894573, lng: 30.39197 },
 };
-function quote(i, qty, t) {
+function quote(i, qty, t, ownIncoming = 0) {
   const ch = Math.max(i.kg * qty, i.vol * qty * 250);
-  const c = DB.batches
-    .filter((b) => b.item === i.id && b.qty - b.res >= qty && pv(b.pvz).active)
-    .map((b) => ({ b, d: km(pv(b.pvz), t) }))
+  const batchesByPoint = new Map();
+  for (const batch of DB.batches) {
+    if (batch.item !== i.id || batch.qty <= batch.res) continue;
+    if (!batchesByPoint.has(batch.pvz)) batchesByPoint.set(batch.pvz, []);
+    batchesByPoint.get(batch.pvz).push(batch);
+  }
+  const local = DB.pvz
+    .filter((point) => point.active && point.id !== t.id && point.city === t.city && batchesByPoint.has(point.id))
+    .map((point) => ({ point, batches: batchesByPoint.get(point.id), d: km(point, t) }))
+    .filter(({ batches }) => sum(batches, (batch) => batch.qty - batch.res) >= qty)
     .sort((x, y) => x.d - y.d)[0];
-  if (!c) throw E(409, 'Нет партии с остатком ' + qty + ' ед. ни на одном ПВЗ');
-  const sp = pv(c.b.pvz),
-    same = sp.city === t.city,
-    d = Math.max(c.d, 0.5),
-    full = !t.active || load(t.id) + (sp.id === t.id ? 0 : qty) > t.cap,
-    blk = !t.active
-      ? 'Целевой ПВЗ недоступен'
-      : 'Целевой ПВЗ заполнен (' + load(t.id) + '/' + t.cap + ')';
+  const used = load(t.id) - ownIncoming;
+  const targetBlock = !t.active
+    ? 'Целевой ПВЗ недоступен'
+    : used + qty > t.cap ? `В целевом ПВЗ недостаточно места (${used}/${t.cap})` : '';
+  const noRoute = (scheme, why) => ({ scheme, cost: null, hours: null, ok: false, why, segs: [] });
+  let mesh = noRoute('MESH', targetBlock || `В городе выдачи нет другого активного ПВЗ с доступным остатком от ${qty} ед.`);
+  if (local && !targetBlock) {
+    const d = Math.max(local.d, 0.5);
+    const cost = 20 + ch * d * 0.35;
+    const hours = 3 + d / 40;
+    mesh = {
+      scheme: 'MESH', cost, hours, ok: true, why: 'прямая доставка между ПВЗ',
+      segs: [
+        { n: local.point.name, l: 'партия' },
+        { n: t.name, l: rub(cost) + ' · ' + hours.toFixed(1) + ' ч', e: 1 },
+      ],
+    };
+  }
+
+  const receivingPoints = DB.pvz.filter((p) => p.active && p.city === DB.seller.city_id
+    && (p.id === t.id ? used : load(p.id)) + qty <= p.cap);
+  const handoff = receivingPoints.find((p) => p.id !== t.id) ?? receivingPoints[0];
+  const hub = !targetBlock && handoff
+    ? demoHubRoute(handoff, t, ch)
+    : noRoute('HUB_TRUNK', targetBlock || 'В городе продавца нет ПВЗ, готового принять завоз.');
+  return { mesh, hub, local, handoff, ch, block: targetBlock || `${mesh.why} ${hub.why}` };
+}
+
+function demoHubRoute(handoff, target, ch) {
+  const same = handoff.city === target.city;
   const hf = call('POST', '/stub/hub/handle', { chargeable_kg: ch }, uid()).data.hub_fee,
     tr = call(
       'POST',
       '/stub/trunk/move',
-      { chargeable_kg: ch, km: same ? 12 : d },
+      { chargeable_kg: ch, km: same ? 12 : km(handoff, target) },
       uid(),
     ).data;
-  const mc = 20 + ch * d * 0.35,
-    mh = 3 + d / 40;
-  const mesh = {
-    scheme: 'MESH',
-    cost: mc,
-    hours: mh,
-    ok: !full && same,
-    why: full
-      ? blk
-      : !same
-        ? 'Прямой рейс доступен только внутри города'
-        : 'прямая доставка между ПВЗ',
-    segs: [
-      { n: sp.name, l: 'партия' },
-      { n: t.name, l: rub(mc) + ' · ' + mh.toFixed(1) + ' ч', e: 1 },
-    ],
-  };
-  const hc = 18 + hf.total + tr.cost + 25,
-    hh = 4 + 6 + tr.hours + 3;
-  const hub = {
+  return {
     scheme: 'HUB_TRUNK',
-    cost: hc,
-    hours: hh,
-    ok: !full,
-    why: full ? blk : 'через хаб и магистраль',
+    cost: 18 + hf.total + tr.cost + 25,
+    hours: 4 + 6 + tr.hours + 3,
+    ok: true,
+    why: 'через хаб и магистраль',
     segs: [
-      { n: sp.name, l: 'партия' },
+      { n: `Продавец · ${DB.seller.name}`, l: 'Точка отправления', kind: 'SELLER' },
+      { n: handoff.name, l: 'Продавец привозит товар в ПВЗ' },
       {
         n: 'Хаб',
         l: rub(hf.total),
         is_stub: true,
-        ...demoHubPositions[DB.cities.find((city) => city.id === sp.city)?.code],
+        ...demoHubPositions[DB.cities.find((city) => city.id === handoff.city)?.code],
       },
       {
         n: 'Магистраль',
         l: rub(tr.cost) + ' · ' + tr.hours.toFixed(1) + ' ч',
         is_stub: true,
       },
-      { n: t.name, l: 'последняя миля ' + rub(25), e: 1 },
+      { n: target.name, l: 'последняя миля ' + rub(25), e: 1 },
     ],
   };
-  return {
-    mesh,
-    hub,
-    src: c.b,
-    srcName: sp.name,
-    ch,
-    same,
-    block:
-      blk +
-      (full
-        ? '. Свободные ПВЗ города: ' +
-          (DB.pvz
-            .filter(
-              (p) =>
-                p.active &&
-                p.city === t.city &&
-                p.id !== t.id &&
-                load(p.id) + (p.id === sp.id ? 0 : qty) <= p.cap,
-            )
-            .map((p) => p.name)
-            .join(', ') || 'нет')
-        : ''),
-  };
+}
+
+function reserveDemoSource(q, scheme, qty) {
+  if (scheme === 'HUB_TRUNK') return { source_pvz_id: q.handoff.id, allocations: [] };
+  const allocations = [];
+  let remaining = qty;
+  for (const batch of q.local.batches) {
+    const take = Math.min(remaining, batch.qty - batch.res);
+    allocations.push({ id: batch.id, qty: take });
+    batch.res += take;
+    remaining -= take;
+    if (remaining === 0) break;
+  }
+  return { source_pvz_id: q.local.point.id, allocations };
+}
+
+function recommendedRoute(q, preference) {
+  if (!q.mesh.ok) return q.hub.ok ? q.hub : null;
+  if (!q.hub.ok) return q.mesh;
+  const metric = preference === 'TIME' ? 'hours' : 'cost';
+  return q.mesh[metric] <= q.hub[metric] ? q.mesh : q.hub;
 }
 function createOrder(b) {
   const i = it(b.item_id),
@@ -175,39 +185,39 @@ function createOrder(b) {
     qty = +b.qty;
   if (!i || !t || !Number.isSafeInteger(qty) || qty < 1)
     throw E(422, 'Проверьте товар, ПВЗ и количество');
-  const q = quote(i, qty, t),
-    pref = b.preference === 'TIME' ? 'TIME' : 'COST',
-    ok = [q.mesh, q.hub].filter((v) => v.ok);
-  if (!ok.length) throw E(409, q.block);
-  const ch = [...ok].sort((a, c) =>
-      pref === 'COST' ? a.cost - c.cost : a.hours - c.hours,
-    )[0],
-    alt = ok.find((v) => v !== ch),
-    oth = ch === q.mesh ? q.hub : q.mesh;
-  const reason = alt
-    ? `Выбрана ${ch.scheme} при приоритете «${pref === 'COST' ? 'стоимость' : 'срок'}»: ${pref === 'COST' ? 'дешевле на ' + rub(alt.cost - ch.cost) + ' (' + Math.round((1 - ch.cost / alt.cost) * 100) + '%)' : 'быстрее на ' + (alt.hours - ch.hours).toFixed(1) + ' ч'}. Альтернатива ${alt.scheme}: ${rub(alt.cost)}, ${alt.hours.toFixed(1)} ч.`
-    : `Единственная допустимая схема — ${ch.scheme}. ${oth.scheme}: ${oth.why}.`;
-  q.src.res += qty;
-  const sla = q.same ? 24 : 72;
+  const q = quote(i, qty, t);
+  const pref = b.preference === 'TIME' ? 'TIME' : 'COST';
+  const requested = b.scheme == null ? null : [q.mesh, q.hub].find((v) => v.scheme === b.scheme);
+  if (requested === undefined) throw E(422, 'Схема должна быть MESH или HUB_TRUNK');
+  if (requested && !requested.ok) throw E(409, `Схема ${requested.scheme} недоступна. ${requested.why}`);
+  const chosen = requested ?? recommendedRoute(q, pref);
+  if (!chosen) throw E(409, q.block);
+  const other = chosen === q.mesh ? q.hub : q.mesh;
+  const reason = requested
+    ? `Схема ${chosen.scheme} выбрана продавцом.`
+    : other.ok
+      ? `Выбрана ${chosen.scheme} при приоритете «${pref === 'COST' ? 'стоимость' : 'срок'}». Альтернатива ${other.scheme}: ${rub(other.cost)}, ${other.hours.toFixed(1)} ч.`
+      : `Единственная допустимая схема — ${chosen.scheme}. ${other.why}`;
+  const source = reserveDemoSource(q, chosen.scheme, qty);
+  const sla = pv(source.source_pvz_id).city === t.city ? 24 : 72;
   const o = {
     id: uid(),
     seller: DB.seller.id,
     item: i.id,
     qty,
     target: t.id,
-    source_pvz_id: q.src.pvz,
+    ...source,
     pref,
     status: 'CREATED',
-    chosen: ch.scheme,
+    chosen: chosen.scheme,
     variants: { mesh: q.mesh, hub: q.hub },
-    segs: ch.segs,
-    cost: ch.cost,
-    cost0: ch.cost,
+    segs: chosen.segs,
+    cost: chosen.cost,
+    cost0: chosen.cost,
     base: q.hub.cost,
-    hours: ch.hours,
+    hours: chosen.hours,
     sla,
     reason,
-    batch: q.src.id,
     price: i.price * qty,
     created: now(),
     history: [{ type: 'CREATED', at: now() }],

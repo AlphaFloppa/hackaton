@@ -80,9 +80,13 @@ final class OrderRepository
     }
 
     /** @return array<string,mixed>|null */
-    public function findOrder(string $orderId): ?array
+    public function findOrder(string $orderId, bool $lock = false): ?array
     {
-        $stmt = $this->db->get()->prepare('SELECT * FROM orders WHERE id = ?');
+        $stmt = $this->db->get()->prepare(
+            'SELECT o.*, leg.from_node AS route_origin, leg.to_node AS route_first_stop
+             FROM orders o LEFT JOIN order_segments leg ON leg.order_id = o.id AND leg.seq = 1
+             WHERE o.id = ?' . ($lock ? ' FOR UPDATE OF o' : '')
+        );
         $stmt->execute([$orderId]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
@@ -90,14 +94,25 @@ final class OrderRepository
     }
 
     /** Заказ по ID или исключение 404. */
-    public function requireOrder(string $orderId): array
+    public function requireOrder(string $orderId, bool $lock = false): array
     {
-        $order = $this->findOrder($orderId);
+        $order = $this->findOrder($orderId, $lock);
         if ($order === null) {
             throw new NotFoundException("Order $orderId not found");
         }
 
         return $order;
+    }
+
+    public static function assemblyPoint(array $order): string
+    {
+        $node = match ($order['scheme']) {
+            'MESH' => $order['route_origin'] ?? '',
+            'HUB_TRUNK' => $order['route_first_stop'] ?? '',
+            default => '',
+        };
+
+        return str_starts_with($node, 'pvz:') ? substr($node, 4) : $order['target_pvz_id'];
     }
 
     /** Обновление статуса заказа (опционально с партией-источником). */

@@ -156,10 +156,12 @@ const H = [
           note: 'Уже собран — повторного списания нет',
         };
       if (o.status !== 'CREATED') throw E(409, 'Нельзя собрать заказ в статусе ' + o.status);
-      const bt = DB.batches.find((x) => x.id === o.batch);
-      bt.qty -= o.qty;
-      bt.res -= o.qty;
-      led('assembly', bt.pvz, pv(bt.pvz).fa, 'Сборка ' + sh(o.id), o.id);
+      for (const allocation of o.allocations) {
+        const batch = DB.batches.find((x) => x.id === allocation.id);
+        batch.qty -= allocation.qty;
+        batch.res -= allocation.qty;
+      }
+      led('assembly', o.source_pvz_id, pv(o.source_pvz_id).fa, 'Сборка ' + sh(o.id), o.id);
       o.status = 'ASSEMBLED';
       o.history.push({ type: o.status, at: now() });
       return { order_id: id, status: o.status, written_off: o.qty };
@@ -215,17 +217,26 @@ const H = [
       if (o.status === 'ISSUED' || o.status === 'RETURNED')
         throw E(409, 'Заказ уже выдан — ошибка маршрута невозможна');
       if (o.incidents.length) throw E(409, 'Ошибка по этому заказу уже зарегистрирована');
-      const alt = o.chosen === 'MESH' ? o.variants.hub : o.variants.mesh,
+      const target = pv(o.target);
+      const q = o.status === 'CREATED' ? quote(it(o.item), o.qty, target, o.qty) : null;
+      const alt = o.chosen === 'MESH' ? q?.hub : q?.mesh,
         extra = 30 + o.cost * 0.2,
         from = o.chosen;
-      if (alt.ok) {
+      if (alt?.ok) {
+        for (const allocation of o.allocations) {
+          DB.batches.find((batch) => batch.id === allocation.id).res -= allocation.qty;
+        }
+        Object.assign(o, reserveDemoSource(q, alt.scheme, o.qty));
         o.chosen = alt.scheme;
         o.segs = alt.segs;
         o.cost = alt.cost;
         o.hours = alt.hours;
+        o.sla = pv(o.source_pvz_id).city === target.city ? 24 : 72;
+        o.variants = { mesh: q.mesh, hub: q.hub };
         o.reason = `После логистической ошибки схема изменена: ${from} → ${o.chosen}.`;
+      } else {
+        o.reason = `Маршрут сохранён: ${alt?.why ?? 'товар уже собран'}. Учтены последствия ошибки.`;
       }
-      if (!alt.ok) o.reason = `Маршрут сохранён: ${alt.why}. Учтены последствия ошибки.`;
       o.cost += extra;
       o.hours += 6;
       led(

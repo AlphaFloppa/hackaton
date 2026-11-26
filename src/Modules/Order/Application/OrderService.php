@@ -30,6 +30,7 @@ final class OrderService
         $targetPvzId = $body['target_pvz_id'] ?? '';
         $qty = filter_var($body['qty'] ?? null, FILTER_VALIDATE_INT);
         $preference = strtoupper((string) ($body['preference'] ?? 'COST'));
+        $scheme = $body['scheme'] ?? null;
 
         if (!is_string($itemId) || !is_string($targetPvzId)) {
             throw new ValidationException("Fields 'item_id' and 'target_pvz_id' are required");
@@ -39,6 +40,9 @@ final class OrderService
         }
         if (!in_array($preference, ['COST', 'TIME'], true)) {
             throw new ValidationException("Field 'preference' must be COST or TIME");
+        }
+        if ($scheme !== null && !in_array($scheme, ['MESH', 'HUB_TRUNK'], true)) {
+            throw new ValidationException("Field 'scheme' must be MESH or HUB_TRUNK");
         }
 
         $item = $this->orders->findItem($itemId);
@@ -62,6 +66,7 @@ final class OrderService
                 'volume_m3' => (string) $item['volume_m3'],
             ]],
             preference: $preference,
+            scheme: $scheme,
         );
 
         // Стоимость/срок берём из решения модуля маршрутизации (сегменты стаба могут быть без тарифов)

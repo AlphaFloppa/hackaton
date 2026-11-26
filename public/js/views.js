@@ -1,3 +1,13 @@
+function orderPreview() {
+  const q = UI.q;
+  if (!q) return '<p class="mu">Нажмите «Сравнить схемы», чтобы увидеть доступные маршруты.</p>';
+  const selected = UI.pick && [q.mesh, q.hub].find((v) => v.scheme === UI.pick);
+  const unavailable = selected && !selected.ok;
+  return `<div class="g">${variant(q.mesh, !UI.pick && q.win === q.mesh, true, UI.f.pref)}${variant(q.hub, !UI.pick && q.win === q.hub, true, UI.f.pref)}</div>
+    ${unavailable ? `<p class="mu">Выбранная схема ${esc(selected.scheme)} недоступна. Выберите доступную схему.</p>` : ''}
+    <p class="mu">Расчётный вес ${Number(q.ch).toFixed(2)} кг · хаб и магистраль — заглушки, ставки — допущение</p>`;
+}
+
 function vSeller() {
   const t = UI.tab.S,
     f = UI.f;
@@ -12,9 +22,8 @@ function vSeller() {
     )
     .join('')}</div>`;
   if (t === 'order') {
-    const q = UI.q;
-    h += `<div class="c"><h3>Новый заказ</h3><div class="row"><label>Товар<select data-f="item">${opt(DB.items, f.item, (i) => i.name)}</select></label><label>Кол-во<input data-f="qty" type="number" min="1" value="${esc(f.qty)}" style="width:80px"></label><label>Целевой ПВЗ<select data-f="tgt">${opt(DB.pvz, f.tgt, (p) => p.name)}</select></label><label>Приоритет<select data-f="pref"><option value="COST"${f.pref === 'COST' ? ' selected' : ''}>Стоимость</option><option value="TIME"${f.pref === 'TIME' ? ' selected' : ''}>Срок</option></select></label><button class="b" data-a="calc">Сравнить схемы</button><button class="b p" data-a="mk">Создать заказ</button></div>
- <div id="route-preview">${q ? `<div class="g">${variant(q.mesh, q.win === q.mesh, true, f.pref)}${variant(q.hub, q.win === q.hub, true, f.pref)}</div><p class="mu">Источник: ${esc(q.srcName)} · расчётный вес ${Number(q.ch).toFixed(2)} кг · хаб и магистраль — заглушки, ставки — допущение</p>` : '<p class="mu">Нажмите «Сравнить схемы», чтобы увидеть оба маршрута и выбор по приоритету.</p>'}</div>
+    h += `<div class="c"><h3>Новый заказ</h3><div class="row"><label>Товар<select data-f="item">${opt(DB.items, f.item, (i) => i.name)}</select></label><label>Кол-во<input data-f="qty" type="number" min="1" value="${esc(f.qty)}" style="width:80px"></label><label>Целевой ПВЗ<select data-f="tgt">${opt(DB.pvz, f.tgt, (p) => p.name)}</select></label><label>Приоритет<select data-f="pref"><option value="COST"${f.pref === 'COST' ? ' selected' : ''}>Стоимость</option><option value="TIME"${f.pref === 'TIME' ? ' selected' : ''}>Срок</option></select></label><button class="b" data-a="calc">Сравнить схемы</button><button class="b p" data-a="mk">Создать заказ${UI.pick ? ` · ${esc(UI.pick)}` : ''}</button></div>
+  <div id="route-preview">${orderPreview()}</div>
  <div class="c" style="margin-top:12px"><h4>Объявить завоз</h4><p class="mu">Сначала завоз партии на ПВЗ — затем заказ: ПВЗ принимает товар только по завозу. Завоз сверх вместимости ПВЗ будет отклонён.</p><div class="row"><label>Товар<select data-f="item">${opt(DB.items, f.item, (i) => i.name)}</select></label><label>ПВЗ<select data-f="supplyPvz">${opt(DB.pvz, f.supplyPvz ?? f.tgt, (p) => p.name)}</select></label><label>Кол-во<input data-f="supplyQty" type="number" min="1" value="${esc(f.supplyQty ?? 5)}" style="width:80px"></label><button class="b" data-a="supply">Объявить завоз</button></div><div style="margin-top:10px">${supplyTable(read('GET', '/supplies'))}</div></div></div>
  ${orderList()}`;
     if (UI.exampleOpen) {

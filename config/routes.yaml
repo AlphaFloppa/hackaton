@@ -40,6 +40,7 @@ app.orders_create:
             target_pvz_id: "uuid (required) — ID целевого ПВЗ"
             customer_id: "uuid (optional) — ID покупателя (заглушка)"
             preference: "enum COST|TIME (optional, default COST) — приоритет: цена или скорость"
+            scheme: "enum MESH|HUB_TRUNK (optional) — выбранная схема; без поля действует автоматический выбор"
 
 # Заказ целиком: статус, решение маршрута, сегменты, расчёт экономики
 app.orders_get:
