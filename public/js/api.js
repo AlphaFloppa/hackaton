@@ -121,6 +121,15 @@ async function refresh(bootstrap = false) {
       if (UI.tab.S === 'an') requests.push([`/analytics/seller/${DB.seller.id}`]);
       if (UI.tab.S === 'order') {
         requests.push(['/supplies']); // блок завозов на вкладке заказа
+        // карточки схем видны сразу: авто-расчёт по текущим полям формы
+        if (it(UI.f.item) && pv(UI.f.tgt) && Number(UI.f.qty) >= 1) {
+          requests.push(['/frontend/quote', {
+            item_id: UI.f.item,
+            qty: Number(UI.f.qty),
+            target_pvz_id: UI.f.tgt,
+            preference: UI.f.pref,
+          }]);
+        }
         if (UI.sel) requests.push([`/orders/${UI.sel}`]);
       }
     } else {
@@ -139,6 +148,17 @@ async function refresh(bootstrap = false) {
       ]),
     );
     screenData = new Map(entries);
+    // автовосстановление карточек схем из prefetch-расчёта (если нет свежего UI.q)
+    const autoQuote = screenData.get('/frontend/quote?' + new URLSearchParams({
+      item_id: UI.f.item, qty: Number(UI.f.qty), target_pvz_id: UI.f.tgt, preference: UI.f.pref,
+    }));
+    if (autoQuote && (!UI.q || UI.q.auto)) {
+      UI.q = {
+        ...autoQuote,
+        auto: true,
+        win: [autoQuote.mesh, autoQuote.hub].find((v) => v?.ok && v.scheme === autoQuote.chosen),
+      };
+    }
     screenError = '';
   } catch (error) {
     screenError = error.message;

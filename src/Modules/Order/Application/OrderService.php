@@ -64,8 +64,13 @@ final class OrderService
             preference: $preference,
         );
 
-        $cost = $this->sumSegmentCosts($decision->segments);
-        $hours = $this->sumSegmentHours($decision->segments);
+        // Стоимость/срок берём из решения модуля маршрутизации (сегменты стаба могут быть без тарифов)
+        $segmentCost = $this->sumSegmentCosts($decision->segments);
+        $segmentHours = $this->sumSegmentHours($decision->segments);
+        $schemeCost = $decision->scheme === 'MESH' ? $decision->costMesh : $decision->costHub;
+        $schemeHours = $decision->scheme === 'MESH' ? $decision->timeMesh : $decision->timeHub;
+        $cost = bccomp($segmentCost, '0', 2) === 1 ? $segmentCost : ($schemeCost ?? '0.00');
+        $hours = bccomp($segmentHours, '0', 2) === 1 ? $segmentHours : ($schemeHours ?? '0.00');
         $buyerPrice = $this->money(bcadd($cost, bcmul($cost, self::MARGIN_RATE, 4), 2));
 
         // Распределение выручки/затрат (допущение): PVZ 30% затрат, Seller 50%, MP 20%

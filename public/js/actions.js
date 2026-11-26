@@ -106,6 +106,21 @@ const res = (r, okT) =>
     r.status < 300,
   );
 const A = {
+  pick: (d) => {
+    // Выбор схемы доставки: подсветка карточки + подгонка приоритета под выбранную схему,
+    // чтобы серверный Router действительно её выбрал.
+    UI.pick = d.scheme;
+    const q = UI.q;
+    if (q) {
+      const v = d.scheme === 'MESH' ? q.mesh : q.hub;
+      const alt = d.scheme === 'MESH' ? q.hub : q.mesh;
+      if (v.ok && alt.ok) {
+        UI.f.pref = v.cost <= alt.cost ? 'COST' : 'TIME';
+      }
+    }
+    UI.msg = null;
+    render();
+  },
   role: (d) => {
     UI.role = d.v;
     UI.msg = null;
@@ -150,6 +165,7 @@ const A = {
     res(call('POST', '/orders', {}), '');
   },
   calc: () => {
+    UI.pick = null;
     const f = UI.f;
     try {
       const input = orderPayload();
@@ -222,6 +238,13 @@ function updateField(element) {
   if (!key || busy) return;
   if (key === 'pvz') UI.pvz = element.value;
   else UI.f[key] = element.value;
+  // Смена приоритета не требует нового запроса: пересчитываем выигрышную схему по сохранённому расчёту
+  if (key === 'pref' && UI.q && UI.q.mesh && UI.q.hub) {
+    const pick = [UI.q.mesh, UI.q.hub].filter((v) => v.ok)
+      .sort((a, c) => (UI.f.pref === 'COST' ? a.cost - c.cost : a.hours - c.hours))[0];
+    UI.q.win = pick;
+    return;
+  }
   UI.q = null;
 }
 
@@ -249,10 +272,27 @@ document.addEventListener('change', (event) => {
   }
   if (!event.target.matches('select[data-f]') || busy) return;
   updateField(event.target);
+  // Явный обработчик приоритета: пересчёт выигрышной схемы и перерисовка карточек
+  if (event.target.dataset.f === 'pref' && UI.q && UI.q.mesh && UI.q.hub) {
+    const pick = [UI.q.mesh, UI.q.hub].filter((v) => v.ok)
+      .sort((a, c) => (UI.f.pref === 'COST' ? a.cost - c.cost : a.hours - c.hours))[0];
+    UI.q.win = pick;
+    UI.msg = null;
+    render();
+    return;
+  }
   if (apiBase && event.target.dataset.f === 'pvz') refresh();
   else render();
 });
 
+document.addEventListener('keydown', (event) => {
+  // Enter/Space на фокусируемой карточке схемы — как клик
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const card = event.target.closest('.v[data-a="pick"]');
+  if (!card || busy) return;
+  event.preventDefault();
+  card.click();
+});
 document.addEventListener('click', (event) => {
   const button = event.target.closest('[data-a]');
   if (!button || busy) return;

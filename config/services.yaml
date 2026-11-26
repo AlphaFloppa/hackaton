@@ -22,10 +22,10 @@ services:
             $user: '%env(DATABASE_USER)%'
             $password: '%env(DATABASE_PASSWORD)%'
 
-    # Граница модуля маршрутизации (писался другой командой).
-    # Чтобы подключить настоящий модуль, замените класс на его реализацию.
+    # Модуль маршрутизации (команда routingmodule) через порт.
+    # Откат на заглушку: class: App\Port\Routing\StubRoutingModule
     App\Port\Routing\RoutingModuleInterface:
-        class: App\Port\Routing\StubRoutingModule
+        class: App\Infrastructure\Routing\MeshRoutingModule
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

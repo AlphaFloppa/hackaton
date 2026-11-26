@@ -274,6 +274,23 @@ th {
   border-radius: 14px;
   padding: 14px;
   background: var(--sf);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.v:hover:not(.no) {
+  border-color: var(--ac2);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac2) 25%, transparent);
+}
+.v.picked {
+  border-color: var(--ac) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 30%, transparent) !important;
+}
+.v.picked:hover:not(.no) {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 40%, transparent) !important;
+}
+.v:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
 }
 .v.win {
   border-color: var(--ac2);

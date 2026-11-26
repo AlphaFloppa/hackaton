@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Infrastructure\Database\ConnectionProvider;
+use Mesh\Routing\NoRoute;
 use App\Port\Routing\RoutingModuleInterface;
 use App\Shared\Api\NotFoundException;
 
@@ -111,16 +112,28 @@ final class FrontendService
         $ch = max((float) $item['weight_kg'] * $qty, (float) $item['volume_m3'] * $qty * 250);
 
         // Решение через порт маршрутизации (чужой модуль)
-        $decision = $this->routing->decide(
-            orderId: '00000000-0000-4000-8000-000000000000',
-            originNodeId: 'SELLER:' . $item['seller_id'],
-            targetPvzId: $targetPvzId,
-            lines: [[
-                'seller_id' => $item['seller_id'], 'sku' => $item['sku'], 'qty' => $qty,
-                'weight_kg' => (string) $item['weight_kg'], 'volume_m3' => (string) $item['volume_m3'],
-            ]],
-            preference: $preference,
-        );
+        try {
+            $decision = $this->routing->decide(
+                orderId: '00000000-0000-4000-8000-000000000000',
+                originNodeId: 'SELLER:' . $item['seller_id'],
+                targetPvzId: $targetPvzId,
+                lines: [[
+                    'seller_id' => $item['seller_id'], 'sku' => $item['sku'], 'qty' => $qty,
+                    'weight_kg' => (string) $item['weight_kg'], 'volume_m3' => (string) $item['volume_m3'],
+                ]],
+                preference: $preference,
+            );
+        } catch (NoRoute|\App\Shared\Api\ConflictException $e) {
+            // Блокировка: обе схемы недоступны, возвращаем объяснение (форма контракта модуля)
+            $reason = $e instanceof NoRoute ? $e->quote['reason'] : $e->getMessage();
+            return [
+                'chosen' => null,
+                'reason' => $reason,
+                'block'  => $reason,
+                'mesh'   => [...$this->variantFromArray(null, 'MESH'), 'why' => $reason],
+                'hub'    => [...$this->variantFromArray(null, 'HUB_TRUNK'), 'why' => $reason],
+            ];
+        }
 
         // Блокировки целевого ПВЗ: недоступен или переполнен
         $load = $this->pvzLoad((string) $target['id']);
@@ -162,6 +175,7 @@ final class FrontendService
         ];
 
         return [
+            'chosen'  => $decision->scheme,
             'mesh'    => $mesh,
             'hub'     => $hub,
             'srcName' => $src['name'],
@@ -574,5 +588,16 @@ final class FrontendService
         );
 
         return ['id' => $id, 'name' => $name];
+    }
+
+    /** Вариант схемы из массива модуля в форму UI. @return array<string,mixed> */
+    private function variantFromArray(?array $v, string $scheme): array
+    {
+        return [
+            'scheme' => $scheme,
+            'ok'     => ($v['ok'] ?? false) === true && isset($v['cost']),
+            'cost'   => isset($v['cost']) ? (float) $v['cost'] : null,
+            'hours'  => isset($v['hours']) ? (float) $v['hours'] : null,
+        ];
     }
 }

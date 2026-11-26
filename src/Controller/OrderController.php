@@ -29,6 +29,6 @@ final class OrderController extends ApiController
     /** Заказ с маршрутом, сегментами и расчётом: GET /orders/{id}. */
     public function get(string $id): Response
     {
-        return self::handleExceptions(fn (): Response => $this->json($this->service->getOrder(strtolower($id))));
+        return $this->json($this->service->getOrder(strtolower($id)));
     }
 }

@@ -16,8 +16,7 @@
         "symfony/runtime": "7.3.*",
         "symfony/yaml": "7.3.*"
     },
-    "require-dev": {
-    },
+    "require-dev": {},
     "config": {
         "allow-plugins": {
             "php-http/discovery": true,
@@ -34,7 +33,8 @@
     },
     "autoload": {
         "psr-4": {
-            "App\\": "src/"
+            "App\\": "src/",
+            "Mesh\\Routing\\": "src/Mesh/Routing/"
         }
     },
     "autoload-dev": {
