@@ -23,3 +23,18 @@ CREATE TABLE IF NOT EXISTS public.time_control (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- Завоз партии от продавца: ПВЗ может принять товар только по существующему завозу
+CREATE TABLE IF NOT EXISTS public.supplies (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    seller_id       UUID NOT NULL REFERENCES public.sellers(id),
+    item_id         UUID NOT NULL REFERENCES public.items(id),
+    pvz_id          UUID NOT NULL REFERENCES public.pvz(id),
+    qty             INTEGER NOT NULL CHECK (qty > 0),
+    status          TEXT NOT NULL DEFAULT 'CREATED'
+                    CHECK (status = ANY (ARRAY['CREATED'::text, 'ACCEPTED'::text, 'CANCELLED'::text])),
+    idempotency_key TEXT UNIQUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS supplies_pvz_idx ON public.supplies (pvz_id, status);

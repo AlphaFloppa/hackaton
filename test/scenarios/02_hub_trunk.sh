@@ -5,9 +5,9 @@ set -uo pipefail
 API="${API:-http://127.0.0.1:8000}/api/v1"
 TS=$(date +%s)
 
-ITEM="cccccccc-2222-2222-2222-222222222222"   # товар Продавца-2 (СПб)
-SELLER="aaaaaaaa-2222-2222-2222-222222222222"
-PVZ=$(sudo -u postgres psql -d wildb -tAc "SELECT id FROM pvz WHERE name='ПВЗ-2' LIMIT 1" | tr -d '[:space:]')
+ITEM="00000000-0000-0000-0000-17e500000004"   # товар Продавца-2 (СПб)
+SELLER="00000000-0000-0000-0000-5e1100000002"
+PVZ=$(sudo -u postgres psql -d wildb -tAc "SELECT id FROM pvz WHERE name='ПВЗ-СПб-1' LIMIT 1" | tr -d '[:space:]')
 K="s2-$TS"
 
 echo "== Сценарий 2: хаб + магистраль =="

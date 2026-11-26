@@ -21,9 +21,9 @@ R=$(curl -sS "$API/health")
 check "GET /health" '"status":"ok"' "$R"
 
 # --- фикстуры: товар и ПВЗ ---
-ITEM="cccccccc-1111-1111-1111-111111111111"
-SELLER="aaaaaaaa-1111-1111-1111-111111111111"
-PVZ=$(sudo -u postgres psql -d wildb -tAc "SELECT id FROM pvz WHERE name='ПВЗ-1' LIMIT 1" | tr -d '[:space:]')
+ITEM="00000000-0000-0000-0000-17e500000001"
+SELLER="00000000-0000-0000-0000-5e1100000001"
+PVZ=$(sudo -u postgres psql -d wildb -tAc "SELECT id FROM pvz WHERE name='ПВЗ-Москва-1' LIMIT 1" | tr -d '[:space:]')
 [[ -n "$PVZ" ]] || { echo "FAIL: ПВЗ-1 не найден, загрузите test/fixtures.sql"; exit 1; }
 
 # --- создание товара ---
@@ -31,10 +31,13 @@ R=$(curl -sS "$API/items" -H 'Content-Type: application/json' \
     -d "{\"seller_id\":\"$SELLER\",\"sku\":\"SMOKE-$(date +%s)\",\"title\":\"Smoke\",\"weight_kg\":1,\"volume_m3\":0.01}")
 check "POST /items" '"id"' "$R"
 
-# --- приёмка ---
-R=$(curl -sS "$API/pvz/$PVZ/intake" -H 'Content-Type: application/json' -H "Idempotency-Key: smoke-intake-$(date +%s)" \
-    -d "{\"item_id\":\"$ITEM\",\"qty\":5,\"storage_tariff_day\":5}")
-check "POST /pvz/{id}/intake" 'batch_id' "$R"
+# --- завоз и приёмка ---
+R=$(curl -sS "$API/supplies" -H 'Content-Type: application/json' -H "Idempotency-Key: smoke-sup-$(date +%s)" \
+    -d "{\"seller_id\":\"$SELLER\",\"item_id\":\"$ITEM\",\"pvz_id\":\"$PVZ\",\"qty\":5}")
+check "POST /supplies" '"id"' "$R"
+SID=$(echo "$R" | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["id"])' 2>/dev/null || true)
+R=$(curl -sS -X POST "$API/supplies/$SID/accept" -H "Idempotency-Key: smoke-intake-$(date +%s)")
+check "POST /supplies/{id}/accept" 'batch_id' "$R"
 
 # --- заказ ---
 R=$(curl -sS "$API/orders" -H 'Content-Type: application/json' -H "Idempotency-Key: smoke-order-$(date +%s)" \

@@ -51,18 +51,7 @@ app.orders_get:
 
 # ── ПВЗ (P) ─────────────────────────────────────────────────────────────────
 
-# Приёмка партии на ПВЗ (идемпотентно через Idempotency-Key)
-app.pvz_intake:
-    path: /api/v1/pvz/{pvzId}/intake
-    controller: App\Controller\PvzController::intake
-    methods: POST
-    requirements:
-        pvzId: '[0-9a-f-]{36}'
-    options:
-        body_spec:
-            item_id: "uuid (required) — ID товара"
-            qty: "int >= 1 (required) — количество единиц в партии"
-            storage_tariff_day: "float (optional, default 0) — тариф хранения, ₽/ед./сутки"
+# Приёмка партии на ПВЗ — только по завозу продавца (см. /supplies/{id}/accept).
 
 # Остатки и загрузка ПВЗ (вместимость, партии)
 app.pvz_stock:
@@ -139,6 +128,64 @@ app.notifications_read_all:
     options:
         body_spec: ~ (тело не требуется; фильтр ?pvz_id=)
 
+# Справочники + заказы для первого экрана демо-фронтенда (без тела)
+app.frontend_bootstrap:
+    path: /api/v1/frontend/bootstrap
+    controller: App\Controller\FrontendController::bootstrap
+    methods: GET
+
+# Предварительный расчёт маршрута для формы заказа (без тела)
+app.frontend_quote:
+    path: /api/v1/frontend/quote
+    controller: App\Controller\FrontendController::quote
+    methods: GET
+
+# Остатки товара по ПВЗ в форме UI (без тела)
+app.frontend_items_batches:
+    path: /api/v1/frontend/items/{id}/batches
+    controller: App\Controller\FrontendController::itemBatches
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Детали заказа в форме UI (без тела)
+app.frontend_orders_get:
+    path: /api/v1/frontend/orders/{id}
+    controller: App\Controller\FrontendController::orderDetails
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Остатки и загрузка ПВЗ в форме UI (без тела)
+app.frontend_pvz_stock:
+    path: /api/v1/frontend/pvz/{id}/stock
+    controller: App\Controller\FrontendController::pvzStock
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Аналитика продавца в форме UI (без тела)
+app.frontend_analytics_seller:
+    path: /api/v1/frontend/analytics/seller/{id}
+    controller: App\Controller\FrontendController::sellerAnalytics
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Аналитика ПВЗ в форме UI (без тела)
+app.frontend_analytics_pvz:
+    path: /api/v1/frontend/analytics/pvz/{id}
+    controller: App\Controller\FrontendController::pvzAnalytics
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Уведомления в форме UI (фильтр ?pvz= или ?pvz_id=, без тела)
+app.frontend_notifications:
+    path: /api/v1/frontend/notifications
+    controller: App\Controller\FrontendController::notifications
+    methods: GET
+
 # ── Аналитика ───────────────────────────────────────────────────────────────
 
 # Аналитика продавца: стоимость, прибыль, base vs mesh
@@ -201,3 +248,33 @@ app.health:
     path: /api/v1/health
     controller: App\Controller\SystemController::health
     methods: GET
+
+# ── Завозы партий (продавец объявляет, ПВЗ принимает) ──────────────────────
+
+# Продавец объявляет завоз партии на ПВЗ (идемпотентно)
+app.supplies_create:
+    path: /api/v1/supplies
+    controller: App\Modules\Stock\Http\SupplyController::create
+    methods: POST
+    options:
+        body_spec:
+            seller_id: "uuid (required) — ID продавца-владельца товара"
+            item_id: "uuid (required) — ID товара (должен принадлежать продавцу)"
+            pvz_id: "uuid (required) — ID ПВЗ назначения"
+            qty: "int >= 1 (required) — количество единиц в завозе"
+
+# Список завозов (фильтр ?pvz_id=, без тела)
+app.supplies_list:
+    path: /api/v1/supplies
+    controller: App\Modules\Stock\Http\SupplyController::list
+    methods: GET
+
+# ПВЗ принимает завоз: создаёт партию и движение INTAKE (идемпотентно, без тела)
+app.supplies_accept:
+    path: /api/v1/supplies/{id}/accept
+    controller: App\Modules\Stock\Http\SupplyController::accept
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+    options:
+        body_spec: ~ (тело не требуется)
