@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Mesh-ПВЗ · MVP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./vendor/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/map.css" />
+    <link rel="stylesheet" href="./css/dark-theme.css" />
+    <link rel="stylesheet" href="./css/layout.css" />
+    <script src="./js/theme.js"></script>
+    <script defer src="./vendor/leaflet/leaflet.js"></script>
+    <script defer src="./js/core.js"></script>
+    <script defer src="./js/demo/store.js"></script>
+    <script defer src="./js/api.js"></script>
+    <script defer src="./js/demo/api.js"></script>
+    <script defer src="./js/data/demo-roads.js"></script>
+    <script defer src="./js/map.js"></script>
+    <script defer src="./js/orders.js"></script>
+    <script defer src="./js/views.js"></script>
+    <script defer src="./js/demo/scenarios.js"></script>
+    <script defer src="./js/actions.js"></script>
+    <script defer src="./js/main.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="brand">Mesh<i>·</i>ПВЗ</div>
+      <div class="seg" id="roles"></div>
+      <div class="sp"></div>
+      <div class="header-meta">
+        <span class="chip stub" title="Хаб, магистраль, покупатель, платёжный шлюз"
+          >заглушки: хаб · магистраль · покупатель</span
+        >
+        <span class="clock" id="clock" aria-live="polite"></span>
+      </div>
+      <div class="header-actions">
+        <button class="b" type="button" data-a="adv" data-d="1" title="Сдвинуть время и начислить хранение">+1 день</button>
+        <button class="b" type="button" data-a="adv" data-d="10" title="Сдвинуть время и начислить хранение">+10 дней</button>
+        <button class="b" type="button" data-a="resetTime" title="Вернуть исходное время, сохранив операции и начисления">Сбросить время</button>
+        <button class="b theme-toggle" id="theme-toggle" type="button" aria-pressed="false">
+          Тёмная тема
+        </button>
+        <button class="b d" data-a="reset">Сброс демо</button>
+      </div>
+    </header>
+    <main>
+      <div id="msg" role="status" aria-live="polite"></div>
+      <div id="app"></div>
+      <p class="mu">
+        Тарифы и пороги в демо — допущение, не тариф RWB. Покупатель, оплата, хаб и магистраль в
+        демо представлены заглушками.
+      </p>
+    </main>
+  </body>
+</html>

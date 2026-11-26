@@ -1,0 +1,40 @@
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #191720;
+  --sf: #211e2b;
+  --tx: #f3eff7;
+  --mu: #c2bacb;
+  --bd: #40384e;
+  --ac: #8137e5;
+  --ac-hover: #6f2cc8;
+  --ac2: #bd91fa;
+  --ok: #a3d5bc;
+  --wn: #e5c68a;
+  --er: #f0aebe;
+  --sf2: #2c2738;
+  --hero: #32243f;
+  --mint: #392851;
+  --sand: #3e3527;
+  --rose: #432a39;
+  --soft-hover: #292334;
+  --ink-accent: #e3ccff;
+  --map-base: #302941;
+  --map-line: #a371e4;
+  --map-end: #c580ad;
+}
+.theme-toggle {
+  white-space: nowrap;
+}
+:root[data-theme='dark'] .fit-delivery-map,
+:root[data-theme='dark'] .leaflet-bar a,
+:root[data-theme='dark'] .leaflet-control-attribution {
+  background: var(--sf2);
+  color: var(--tx);
+  border-color: var(--bd);
+}
+:root[data-theme='dark'] .leaflet-control-attribution a {
+  color: var(--ink-accent);
+}
+:root[data-theme='dark'] .leaflet-tile-pane {
+  filter: brightness(0.66) saturate(0.82);
+}

@@ -1,0 +1,318 @@
+# Все маршруты API v1 (перенесены из PHP-атрибутов).
+# Формат контроллера: FQCN::method
+#
+# Спецификация тел POST-запросов задана как доп. параметры маршрута в ключе `body_spec:`
+# (документация; Symfony их игнорирует). Формат полей: имя: тип (required|optional) — описание.
+# Идемпотентность: все POST (кроме items_create) требуют заголовок Idempotency-Key.
+
+# ── Продавец (S) ────────────────────────────────────────────────────────────
+
+# Создать товар (вес, объём); без Idempotency-Key по спеке
+app.items_create:
+    path: /api/v1/items
+    controller: App\Controller\CatalogController::create
+    methods: POST
+    options:
+        body_spec:
+            seller_id: "uuid (required) — ID продавца-владельца"
+            sku: "string (required) — артикул продавца"
+            title: "string (required) — название товара"
+            weight_kg: "float (optional, default 0) — вес, кг"
+            volume_m3: "float (optional, default 0) — объём, м³"
+
+# Где лежит товар: остатки партий по ПВЗ
+app.items_batches:
+    path: /api/v1/items/{id}/batches
+    controller: App\Controller\CatalogController::batches
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Создать заказ: item_id, qty, target_pvz_id, preference COST|TIME; зовёт модуль маршрутизации
+app.orders_create:
+    path: /api/v1/orders
+    controller: App\Controller\OrderController::create
+    methods: POST
+    options:
+        body_spec:
+            item_id: "uuid (required) — ID товара"
+            qty: "int >= 1 (required) — количество"
+            target_pvz_id: "uuid (required) — ID целевого ПВЗ"
+            customer_id: "uuid (optional) — ID покупателя (заглушка)"
+            preference: "enum COST|TIME (optional, default COST) — приоритет: цена или скорость"
+
+# Заказ целиком: статус, решение маршрута, сегменты, расчёт экономики
+app.orders_get:
+    path: /api/v1/orders/{id}
+    controller: App\Controller\OrderController::get
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# ── ПВЗ (P) ─────────────────────────────────────────────────────────────────
+
+# Приёмка партии на ПВЗ — только по завозу продавца (см. /supplies/{id}/accept).
+
+# Остатки и загрузка ПВЗ (вместимость, партии)
+app.pvz_stock:
+    path: /api/v1/pvz/{pvzId}/stock
+    controller: App\Controller\PvzController::stock
+    methods: GET
+    requirements:
+        pvzId: '[0-9a-f-]{36}'
+
+# Начисление хранения за прошедшие дни (сценарий «длительное хранение»)
+app.pvz_storage_accrue:
+    path: /api/v1/pvz/{pvzId}/storage/accrue
+    controller: App\Controller\PvzController::accrueStorage
+    methods: POST
+    requirements:
+        pvzId: '[0-9a-f-]{36}'
+    options:
+        body_spec: ~ (тело не требуется)
+
+# Сборка заказа: RESERVE на партии + проводка FEE_ASSEMBLY (идемпотентно)
+app.order_assemble:
+    path: /api/v1/orders/{id}/assemble
+    controller: App\Controller\OrderOpsController::assemble
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+    options:
+        body_spec: ~ (тело не требуется)
+
+# Выдача покупателю: COMMIT резерва + проводка FEE_ISSUE (идемпотентно)
+app.order_issue:
+    path: /api/v1/orders/{id}/issue
+    controller: App\Controller\OrderOpsController::issue
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+    options:
+        body_spec: ~ (тело не требуется)
+
+# Возврат заказа: RELEASE резерва / REFUND + уведомление (идемпотентно)
+app.order_return:
+    path: /api/v1/orders/{id}/return
+    controller: App\Controller\OrderOpsController::returnOrder
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+    options:
+        body_spec:
+            reason: "string (optional) — причина возврата"
+
+# Зафиксировать логистическую ошибку (инцидент)
+app.incidents_create:
+    path: /api/v1/incidents
+    controller: App\Controller\IncidentController::create
+    methods: POST
+    options:
+        body_spec:
+            type: "string (required) — тип инцидента (например MISSEND)"
+            description: "string (required) — описание ошибки"
+            order_id: "uuid (optional) — связанный заказ"
+            pvz_id: "uuid (optional) — связанный ПВЗ"
+
+# Уведомления ПВЗ (долгое хранение, ошибки); фильтр ?pvz_id=
+app.notifications_list:
+    path: /api/v1/notifications
+    controller: App\Controller\NotificationController::list
+    methods: GET
+
+# Отметить все уведомления прочитанными
+app.notifications_read_all:
+    path: /api/v1/notifications/read-all
+    controller: App\Controller\NotificationController::readAll
+    methods: POST
+    options:
+        body_spec: ~ (тело не требуется; фильтр ?pvz_id=)
+
+# Справочники + заказы для первого экрана демо-фронтенда (без тела)
+app.frontend_bootstrap:
+    path: /api/v1/frontend/bootstrap
+    controller: App\Controller\FrontendController::bootstrap
+    methods: GET
+
+# Предварительный расчёт маршрута для формы заказа (без тела)
+app.frontend_quote:
+    path: /api/v1/frontend/quote
+    controller: App\Controller\FrontendController::quote
+    methods: GET
+
+# Остатки товара по ПВЗ в форме UI (без тела)
+app.frontend_items_batches:
+    path: /api/v1/frontend/items/{id}/batches
+    controller: App\Controller\FrontendController::itemBatches
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Детали заказа в форме UI (без тела)
+app.frontend_orders_get:
+    path: /api/v1/frontend/orders/{id}
+    controller: App\Controller\FrontendController::orderDetails
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Остатки и загрузка ПВЗ в форме UI (без тела)
+app.frontend_pvz_stock:
+    path: /api/v1/frontend/pvz/{id}/stock
+    controller: App\Controller\FrontendController::pvzStock
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Аналитика продавца в форме UI (без тела)
+app.frontend_analytics_seller:
+    path: /api/v1/frontend/analytics/seller/{id}
+    controller: App\Controller\FrontendController::sellerAnalytics
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Аналитика ПВЗ в форме UI (без тела)
+app.frontend_analytics_pvz:
+    path: /api/v1/frontend/analytics/pvz/{id}
+    controller: App\Controller\FrontendController::pvzAnalytics
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Уведомления в форме UI (фильтр ?pvz= или ?pvz_id=, без тела)
+app.frontend_notifications:
+    path: /api/v1/frontend/notifications
+    controller: App\Controller\FrontendController::notifications
+    methods: GET
+
+# ── Аналитика ───────────────────────────────────────────────────────────────
+
+# Аналитика продавца: стоимость, прибыль, base vs mesh
+app.analytics_seller:
+    path: /api/v1/analytics/seller/{id}
+    controller: App\Controller\AnalyticsController::seller
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Аналитика ПВЗ: сборы, заказы, хранение
+app.analytics_pvz:
+    path: /api/v1/analytics/pvz/{id}
+    controller: App\Controller\AnalyticsController::pvz
+    methods: GET
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# ── Внутреннее / заглушки (Sys) ─────────────────────────────────────────────
+
+# STUB: обработка на хабе (ASSEMBLED -> IN_TRANSIT, фиксированное допущение)
+app.stub_hub_handle:
+    path: /api/v1/stub/hub/handle
+    controller: App\Controller\StubController::hubHandle
+    methods: POST
+    options:
+        body_spec:
+            order_id: "uuid (required) — ID заказа"
+
+# STUB: магистраль (IN_TRANSIT -> DELIVERED_TO_PVZ, cost = kg × км × 0.05₽)
+app.stub_trunk_move:
+    path: /api/v1/stub/trunk/move
+    controller: App\Controller\StubController::trunkMove
+    methods: POST
+    options:
+        body_spec:
+            order_id: "uuid (required) — ID заказа"
+            chargeable_kg: "float (optional, default 1) — тарифицируемый вес, кг"
+            distance_km: "float (optional, default 0) — длина магистрали, км"
+
+# Сдвиг тестового времени на N часов (сценарий 5)
+app.system_time_advance:
+    path: /api/v1/system/time/advance
+    controller: App\Controller\SystemController::timeAdvance
+    methods: POST
+    options:
+        body_spec:
+            hours: "int >= 1 (required) — на сколько часов сдвинуть время"
+            accrue_storage: "bool (optional, default false) — начислить хранение по тестовому времени"
+
+# Сброс тестового времени на реальное
+app.system_time_reset:
+    path: /api/v1/system/time/reset
+    controller: App\Controller\SystemController::timeReset
+    methods: POST
+    options:
+        body_spec: ~ (тело не требуется)
+
+# Healthcheck для Docker (проверяет доступность БД)
+app.health:
+    path: /api/v1/health
+    controller: App\Controller\SystemController::health
+    methods: GET
+
+# ── Завозы партий (продавец объявляет, ПВЗ принимает) ──────────────────────
+
+# Продавец объявляет завоз партии на ПВЗ (идемпотентно)
+app.supplies_create:
+    path: /api/v1/supplies
+    controller: App\Modules\Stock\Http\SupplyController::create
+    methods: POST
+    options:
+        body_spec:
+            seller_id: "uuid (required) — ID продавца-владельца товара"
+            item_id: "uuid (required) — ID товара (должен принадлежать продавцу)"
+            pvz_id: "uuid (required) — ID ПВЗ назначения"
+            qty: "int >= 1 (required) — количество единиц в завозе"
+
+# Список завозов (фильтр ?pvz_id=, без тела)
+app.supplies_list:
+    path: /api/v1/supplies
+    controller: App\Modules\Stock\Http\SupplyController::list
+    methods: GET
+
+# ПВЗ принимает завоз: создаёт партию и движение INTAKE (идемпотентно, без тела)
+app.supplies_accept:
+    path: /api/v1/supplies/{id}/accept
+    controller: App\Modules\Stock\Http\SupplyController::accept
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+    options:
+        body_spec: ~ (тело не требуется)
+
+# Список завозов в форме UI (фильтр ?pvz_id=; без pvz_id — завозы продавца)
+app.frontend_supplies:
+    path: /api/v1/frontend/supplies
+    controller: App\Controller\FrontendController::supplies
+    methods: GET
+
+# Создание завоза продавцом (идемпотентно)
+app.frontend_supplies_create:
+    path: /api/v1/frontend/supplies
+    controller: App\Controller\FrontendController::createSupply
+    methods: POST
+    options:
+        body_spec:
+            item_id: "uuid (required) — ID товара продавца"
+            pvz_id: "uuid (required) — ID ПВЗ назначения"
+            qty: "int >= 1 (required) — количество единиц"
+
+# Приёмка завоза ПВЗ (идемпотентно, без тела)
+app.frontend_supplies_accept:
+    path: /api/v1/frontend/supplies/{id}/accept
+    controller: App\Controller\FrontendController::acceptSupply
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Создание товара от демо-продавца (payload фронтенда name/kg/vol/price, идемпотентно)
+app.frontend_items_create:
+    path: /api/v1/frontend/items
+    controller: App\Controller\FrontendController::createItem
+    methods: POST
+    options:
+        body_spec:
+            name: "string (required) — название товара"
+            kg: "float (optional, default 0) — вес, кг"
+            vol: "float (optional, default 0) — объём, м³"
+            price: "float (optional, default 0) — цена, ₽ (в БД не хранится)"
