@@ -84,4 +84,45 @@ final class FrontendController extends ApiController
     {
         return $this->raw(fn (): array => $this->service->orderDetails(strtolower($id)));
     }
+
+    /** Список завозов (фильтр ?pvz_id=, без тела; продавец — свои). */
+    public function supplies(Request $request): Response
+    {
+        return $this->raw(function () use ($request): array {
+            $pvzId = $request->query->get('pvz_id');
+
+            return $this->service->suppliesList(
+                is_string($pvzId) && preg_match('/^[0-9a-f-]{36}$/i', $pvzId) ? strtolower($pvzId) : null,
+            );
+        });
+    }
+
+    /** Создание завоза продавцом: POST /frontend/supplies. */
+    public function createSupply(Request $request): Response
+    {
+        return $this->raw(function () use ($request): array {
+            $key = self::requireIdempotencyKey($request);
+
+            return $this->service->createSupply(self::body($request), $key);
+        });
+    }
+
+    /** Приёмка завоза ПВЗ: POST /frontend/supplies/{id}/accept. */
+    public function acceptSupply(Request $request, string $id): Response
+    {
+        return $this->raw(function () use ($request, $id): array {
+            $key = self::requireIdempotencyKey($request);
+
+            return $this->service->acceptSupply(strtolower($id), $key);
+        });
+    }
+    /** Создание товара от демо-продавца: POST /frontend/items (payload name/kg/vol/price). */
+    public function createItem(Request $request): Response
+    {
+        return $this->raw(function () use ($request): array {
+            self::requireIdempotencyKey($request);
+
+            return $this->service->createItem(self::body($request));
+        });
+    }
 }

@@ -14,7 +14,8 @@ function vSeller() {
   if (t === 'order') {
     const q = UI.q;
     h += `<div class="c"><h3>Новый заказ</h3><div class="row"><label>Товар<select data-f="item">${opt(DB.items, f.item, (i) => i.name)}</select></label><label>Кол-во<input data-f="qty" type="number" min="1" value="${esc(f.qty)}" style="width:80px"></label><label>Целевой ПВЗ<select data-f="tgt">${opt(DB.pvz, f.tgt, (p) => p.name)}</select></label><label>Приоритет<select data-f="pref"><option value="COST"${f.pref === 'COST' ? ' selected' : ''}>Стоимость</option><option value="TIME"${f.pref === 'TIME' ? ' selected' : ''}>Срок</option></select></label><button class="b" data-a="calc">Сравнить схемы</button><button class="b p" data-a="mk">Создать заказ</button></div>
- <div id="route-preview">${q ? `<div class="g">${variant(q.mesh, q.win === q.mesh)}${variant(q.hub, q.win === q.hub)}</div><p class="mu">Источник: ${esc(q.srcName)} · расчётный вес ${Number(q.ch).toFixed(2)} кг · хаб и магистраль — заглушки, ставки — допущение</p>` : '<p class="mu">Нажмите «Сравнить схемы», чтобы увидеть оба маршрута и выбор по приоритету.</p>'}</div></div>
+ <div id="route-preview">${q ? `<div class="g">${variant(q.mesh, q.win === q.mesh)}${variant(q.hub, q.win === q.hub)}</div><p class="mu">Источник: ${esc(q.srcName)} · расчётный вес ${Number(q.ch).toFixed(2)} кг · хаб и магистраль — заглушки, ставки — допущение</p>` : '<p class="mu">Нажмите «Сравнить схемы», чтобы увидеть оба маршрута и выбор по приоритету.</p>'}</div>
+ <div class="c" style="margin-top:12px"><h4>Объявить завоз</h4><p class="mu">Сначала завоз партии на ПВЗ — затем заказ: ПВЗ принимает товар только по завозу. Завоз сверх вместимости ПВЗ будет отклонён.</p><div class="row"><label>Товар<select data-f="item">${opt(DB.items, f.item, (i) => i.name)}</select></label><label>ПВЗ<select data-f="supplyPvz">${opt(DB.pvz, f.supplyPvz ?? f.tgt, (p) => p.name)}</select></label><label>Кол-во<input data-f="supplyQty" type="number" min="1" value="${esc(f.supplyQty ?? 5)}" style="width:80px"></label><button class="b" data-a="supply">Объявить завоз</button></div><div style="margin-top:10px">${supplyTable(read('GET', '/supplies'))}</div></div></div>
  ${orderList()}`;
     if (UI.exampleOpen) {
       h += orderDetails(loadExampleOrder(), true);
@@ -37,7 +38,9 @@ function vSeller() {
  )
  .join('');
    })
-   .join('')}</table></div>`;
+   .join('')}</table></div>
+ <div class="c" style="margin-top:14px"><h3>Объявить завоз</h3><p class="mu">Завоз — заказ на доставку партии на ПВЗ. ПВЗ сможет принять товар только по существующему завозу. Учтите вместимость ПВЗ: завоз сверх свободного места будет отклонён (409).</p><div class="row"><label>Товар<select data-f="item">${opt(DB.items, f.item, (i) => i.name)}</select></label><label>ПВЗ<select data-f="supplyPvz">${opt(DB.pvz, f.supplyPvz ?? f.tgt, (p) => p.name)}</select></label><label>Кол-во<input data-f="supplyQty" type="number" min="1" value="${esc(f.supplyQty ?? 5)}" style="width:80px"></label><button class="b p" data-a="supply">Объявить завоз</button></div></div>
+ <div class="c tw" style="margin-top:14px"><h3>Мои завозы</h3>${supplyTable(read('GET', '/supplies'))}</div>`;
   }
   if (t === 'an') {
     const a = read('GET', '/analytics/seller/' + DB.seller.id),
@@ -67,8 +70,8 @@ function vPvz() {
   if (t === 'orders') h += orderList();
   if (t === 'stock') {
     const s = read('GET', `/pvz/${p.id}/stock`);
-    h += `<div class="g"><div class="c"><h3>Занято и зарезервировано</h3><div class="big">${esc(s.load)} / ${esc(s.capacity)}</div><div class="bar"><i style="width:${s.capacity > 0 ? Math.min(100, (s.load / s.capacity) * 100) : 0}%"></i></div></div>
- <div class="c"><h3>Приёмка партии</h3><div class="row"><label>Товар<select data-f="intakeItem">${opt(DB.items, f.intakeItem, (i) => i.name)}</select></label><label>Кол-во<input data-f="intakeQty" type="number" min="1" value="${esc(f.intakeQty)}" style="width:80px"></label><button class="b p" data-a="intake">Принять</button></div></div></div>
+    h += `<div class="g"><div class="c"><h3>Занято и зарезервировано ${s.capacity > 0 && s.load / s.capacity >= 1 ? chip('заполнен — завоз/приёмка невозможны', 'er') : s.capacity > 0 && s.load / s.capacity >= 0.8 ? chip('загрузка ≥ 80% — крупный завоз не пройдёт', 'wn') : ''}</h3><div class="big">${esc(s.load)} / ${esc(s.capacity)}</div><div class="bar"><i style="width:${s.capacity > 0 ? Math.min(100, (s.load / s.capacity) * 100) : 0}%"></i></div></div>
+ <div class="c"><h3>Входящие завозы</h3><p class="mu">Принять товар можно только по завозу продавца. Свободная приёмка отключена.</p>${suppliesPvz(read('GET', '/supplies', { pvz_id: p.id }))}</div></div>
  <div class="c tw" style="margin-top:14px"><table><tr><th>Товар</th><th>Остаток</th><th>Резерв</th><th>Возраст</th></tr>${s.rows.map((r) => `<tr><td>${esc(r.item)}</td><td>${esc(r.qty)}</td><td>${esc(r.reserved)}</td><td>${esc(r.age_days)} сут. ${r.age_days >= 7 ? chip('долгое хранение', 'wn') : ''}</td></tr>`).join('')}</table></div>`;
   }
   if (t === 'an') {
@@ -136,19 +139,21 @@ function render() {
     content = `<div class="c" role="alert">${esc(error.message)} <button class="b" data-a="refresh">Обновить</button></div>`;
   }
   $('#app').innerHTML =
-    `<section class="workspace-heading"><div class="screen-tag">${chip(apiBase ? 'Серверный режим' : 'Локальное демо', 'ac')}</div><h1>${title}</h1><p class="mu">${description}</p>${!apiBase && UI.role === 'S' ? '<button class="b" style="margin-top:12px" type="button" data-a="openExample">Показать пример доставки</button>' : ''}</section>${content}`;
+    `<section class="workspace-heading"><div class="screen-tag">${chip(apiBase ? 'Серверный режим' : 'Локальное демо', 'ac')}</div><h1>${title}</h1><p class="mu">${description}</p>${UI.role === 'S' && DB?.seller ? `<p class="mu">Продавец: <b>${esc(DB.seller.name)}</b>${DB.seller.city ? ' · город: ' + esc(DB.seller.city) : ''}</p>` : ''}${!apiBase && UI.role === 'S' ? '<button class="b" style="margin-top:12px" type="button" data-a="openExample">Показать пример доставки</button>' : ''}</section>${content}`;
   mountDeliveryMap();
   $('#app').setAttribute('aria-busy', 'false');
-  $('#csum').textContent =
-    `Консоль API · покрытие ${EPS.filter((e) => UI.used.has(e)).length} из ${EPS.length} эндпоинтов`;
-  $('#cov').innerHTML = EPS.map(
-    (e) => `<span class="${UI.used.has(e) ? 'on' : ''}">${e}</span>`,
-  ).join('');
-  $('#lg').innerHTML =
-    UI.log
-      .map(
-        (l) =>
-          `${esc(l.t)} ${esc(l.ep)} ${esc(l.path)} <b class="${l.st < 300 ? 'k' : 'e'}">${l.st}</b>${l.key ? ' key=' + sh(l.key) : ''}${l.replay ? ' (повтор: ответ из кэша)' : ''}${l.err ? ' · ' + esc(l.err) : ''}`,
-      )
-      .join('<br>') || 'Запросов пока нет';
+}
+
+
+function supplyTable(rows) {
+  if (!rows || !rows.length) return '<p class="mu">Завозов пока нет. Объявите завоз, чтобы ПВЗ мог принять партию.</p>';
+  const statusChip = (s) => chip(s === 'ACCEPTED' ? 'принят' : s === 'CANCELLED' ? 'отменён' : 'ожидает приёмки', s === 'ACCEPTED' ? 'ok' : s === 'CANCELLED' ? 'er' : 'wn');
+  return `<table><tr><th>Товар</th><th>ПВЗ</th><th>Кол-во</th><th>Статус</th><th>Создан</th></tr>${rows.map((s) => `<tr><td>${esc(s.item)}</td><td>${esc(s.pvz)}</td><td>${esc(s.qty)}</td><td>${statusChip(s.status)}</td><td class="mu">${fd(s.created)}</td></tr>`).join('')}</table>`;
+}
+
+function suppliesPvz(rows) {
+  if (!rows || !rows.length) return '<p class="mu">Входящих завозов нет. Они появятся, когда продавец объявит завоз на этот ПВЗ.</p>';
+  const pending = rows.filter((s) => s.status === 'CREATED');
+  return `${pending.length ? `<table><tr><th>Товар</th><th>Продавец</th><th>Кол-во</th><th></th></tr>${pending.map((s) => `<tr><td>${esc(s.item)}</td><td>${esc(s.seller)}</td><td>${esc(s.qty)}</td><td><button class="b p" data-a="accept" data-id="${esc(s.id)}">Принять</button></td></tr>`).join('')}</table>` : '<p class="mu">Новых завозов нет — все приняты.</p>'}
+  <div style="margin-top:10px"><h4>История</h4>${supplyTable(rows.filter((s) => s.status !== 'CREATED'))}</div>`;
 }

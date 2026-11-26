@@ -284,6 +284,35 @@ const H = [
     },
   ],
   ['GET', '/notifications', (b) => DB.notes.filter((n) => !b.pvz_id || n.pvz === b.pvz_id)],
+  ['GET', '/supplies', () => DB.supplies ?? []],
+  [
+    'POST',
+    '/supplies',
+    (b) => {
+      const q = +b.qty;
+      if (!it(b.item_id) || !pv(b.pvz_id) || !Number.isSafeInteger(q) || q < 1)
+        throw E(422, 'Проверьте товар, ПВЗ и количество');
+      const s = { id: uid(), item_id: b.item_id, pvz_id: b.pvz_id, qty: q, status: 'CREATED', at: now() };
+      (DB.supplies ??= []).unshift(s);
+      return s;
+    },
+  ],
+  [
+    'POST',
+    '/supplies/:id/accept',
+    (b, id) => {
+      const s = (DB.supplies ?? []).find((x) => x.id === id);
+      if (!s) throw E(404, 'Завоз не найден');
+      if (s.status !== 'CREATED') throw E(409, 'Завоз уже обработан');
+      s.status = 'ACCEPTED';
+      const p = pv(s.pvz_id),
+        i = it(s.item_id);
+      DB.batches.push({ id: uid(), item: s.item_id, pvz: s.pvz_id, qty: s.qty, res: 0, at: now(), chg: now() });
+      led('intake', s.pvz_id, p.fi * s.qty, `Приёмка ${s.qty} ед. «${i.name}»`);
+      note('INFO', s.pvz_id, `Принят завоз: ${i.name} × ${s.qty} ед.`);
+      return { batch_id: uid(), supply_id: s.id, qty: s.qty, status: 'ACCEPTED' };
+    },
+  ],
   [
     'POST',
     '/stub/hub/handle',
@@ -376,16 +405,5 @@ function call(m, path, body = {}, key) {
   }
   if (!replay && m === 'POST' && h?.[1] !== '/items' && key && st < 300)
     DB.idem.set(key, { signature, status: st, data: structuredClone(data) });
-  if (st < 300) UI.used.add(ep);
-  UI.log.unshift({
-    ep,
-    st,
-    key,
-    replay,
-    path: path.replace(/[0-9a-f-]{36}/, (x) => sh(x)),
-    t: new Date(now()).toLocaleTimeString('ru-RU'),
-    err: st >= 300 ? data.error : '',
-  });
-  UI.log.length = Math.min(UI.log.length, 60);
   return { status: st, data, replay };
 }

@@ -14,14 +14,23 @@ function read(method, path, query = {}) {
 
 async function request(method, path, payload = {}) {
   // GET-запросы UI идут на /frontend/*-адаптер (форма данных под вьюхи)
+  // Фронт работает через /frontend/*-адаптер (bare JSON + демо-seller на стороне бэкенда)
+  const frontendPaths = [
+    [/^\/items\/([^/]+)\/batches$/, '/frontend/items/$1/batches'],
+    [/^\/orders\/([^/]+)$/, '/frontend/orders/$1'],
+    [/^\/pvz\/([^/]+)\/stock$/, '/frontend/pvz/$1/stock'],
+    [/^\/analytics\/seller\//, '/frontend/analytics/seller/'],
+    [/^\/analytics\/pvz\//, '/frontend/analytics/pvz/'],
+    [/^\/notifications$/, '/frontend/notifications'],
+    [/^\/supplies$/, '/frontend/supplies'],
+    [/^\/supplies\/([^/]+)\/accept$/, '/frontend/supplies/$1/accept'],
+    [/^\/items$/, '/frontend/items'],
+  ];
   const apiPath = method === 'GET' && path !== '/health'
-    ? path.replace(/^\/items\/([^/]+)\/batches$/, '/frontend/items/$1/batches')
-          .replace(/^\/orders\/([^/]+)$/, '/frontend/orders/$1')
-          .replace(/^\/pvz\/([^/]+)\/stock$/, '/frontend/pvz/$1/stock')
-          .replace(/^\/analytics\/seller\//, '/frontend/analytics/seller/')
-          .replace(/^\/analytics\/pvz\//, '/frontend/analytics/pvz/')
-          .replace(/^\/notifications$/, '/frontend/notifications')
-    : path;
+    ? frontendPaths.reduce((acc, [re, to]) => acc.replace(re, to), path)
+    : path.replace(/^\/supplies\/?$/, '/frontend/supplies')
+          .replace(/^\/supplies\/([^/]+)\/accept$/, '/frontend/supplies/$1/accept')
+          .replace(/^\/items$/, '/frontend/items');
   const url = new URL(apiBase + apiPath, location.href);
   if (!['http:', 'https:'].includes(url.protocol)) throw Error('Укажите HTTP-адрес API.');
   const headers = { Accept: 'application/json' };
@@ -55,14 +64,6 @@ async function request(method, path, payload = {}) {
     ![408, 425, 429].includes(response.status)
   )
     pendingKeys.delete(signature);
-  UI.log.unshift({
-    t: new Date().toLocaleTimeString('ru-RU'),
-    ep: method,
-    path,
-    st: response.status,
-    key: headers['Idempotency-Key'],
-  });
-  UI.log.length = Math.min(UI.log.length, 60);
   if (response.ok) UI.used.add(method + ' ' + path.replace(/[0-9a-f-]{36}/g, '{id}'));
   if (response.status === 204 && method === 'POST') {
     pendingKeys.delete(signature);
@@ -107,21 +108,29 @@ async function refresh(bootstrap = false) {
       if (!pv(UI.f.tgt)) UI.f.tgt = DB.pvz[0].id;
       if (!it(UI.f.item)) UI.f.item = DB.items[0]?.id ?? '';
       if (!it(UI.f.intakeItem)) UI.f.intakeItem = DB.items[0]?.id ?? '';
+      if (!pv(UI.f.supplyPvz)) UI.f.supplyPvz = DB.pvz[0].id; // ПВЗ по умолчанию для завоза
+      if (!UI.f.supplyQty) UI.f.supplyQty = 5;
       if (!DB.orders.some((order) => order.id === UI.sel)) UI.sel = null;
     }
     const requests = [];
     if (UI.role === 'S') {
-      if (UI.tab.S === 'items')
+      if (UI.tab.S === 'items') {
         requests.push(...DB.items.map((item) => [`/items/${item.id}/batches`]));
+        requests.push(['/supplies']); // завозы продавца
+      }
       if (UI.tab.S === 'an') requests.push([`/analytics/seller/${DB.seller.id}`]);
-      if (UI.tab.S === 'order' && UI.sel) requests.push([`/orders/${UI.sel}`]);
+      if (UI.tab.S === 'order') {
+        requests.push(['/supplies']); // блок завозов на вкладке заказа
+        if (UI.sel) requests.push([`/orders/${UI.sel}`]);
+      }
     } else {
-      const paths = {
-        stock: [`/pvz/${UI.pvz}/stock`],
-        an: [`/analytics/pvz/${UI.pvz}`],
-        nt: ['/notifications', { pvz_id: UI.pvz }],
-      };
-      if (paths[UI.tab.P]) requests.push(paths[UI.tab.P]);
+      if (UI.tab.P === 'stock') {
+        requests.push([`/pvz/${UI.pvz}/stock`], ['/supplies', { pvz_id: UI.pvz }]); // остатки + входящие завозы
+      } else if (UI.tab.P === 'an') {
+        requests.push([`/analytics/pvz/${UI.pvz}`]);
+      } else if (UI.tab.P === 'nt') {
+        requests.push(['/notifications', { pvz_id: UI.pvz }]);
+      }
     }
     const entries = await Promise.all(
       requests.map(async ([path, query]) => [

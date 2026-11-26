@@ -30,6 +30,8 @@ final class FrontendService
     public function __construct(
         private readonly ConnectionProvider $db,
         private readonly RoutingModuleInterface $routing,
+        private readonly \App\Modules\Stock\Application\SupplyService $supplies,
+        private readonly \App\Modules\Catalog\Infrastructure\CatalogRepository $catalog,
     ) {}
 
     /**
@@ -442,10 +444,14 @@ final class FrontendService
         }, $stmt->fetchAll(\PDO::FETCH_ASSOC));
     }
 
-    /** Продавец демо или 404. @return array{id:string,name:string} */
+    /** Продавец демо (с городом) или 404. @return array{id:string,name:string,city:string|null} */
     private function fetchSeller(): array
     {
-        $stmt = $this->db->get()->prepare('SELECT id, name FROM sellers WHERE id = ?');
+        $stmt = $this->db->get()->prepare(
+            'SELECT s.id, s.name, c.name AS city
+             FROM sellers s LEFT JOIN cities c ON c.id = s.city_id
+             WHERE s.id = ?'
+        );
         $stmt->execute([self::DEMO_SELLER_ID]);
         $seller = $stmt->fetch(\PDO::FETCH_ASSOC);
         if ($seller === false) {
@@ -482,5 +488,91 @@ final class FrontendService
     private function rub(?float $n): string
     {
         return number_format($n ?? 0, 2, ',', ' ') . ' ₽';
+    }
+    // ── Завозы партий (адаптер под UI) ──────────────────────────────────────
+
+    /**
+     * Создание завоза продавцом. seller_id берётся из контекста демо (DEMO_SELLER_ID).
+     * @param array<string,mixed> $q item_id, pvz_id, qty
+     * @return array<string,mixed>
+     */
+    public function createSupply(array $q, string $idempotencyKey): array
+    {
+        $itemId = (string) ($q['item_id'] ?? '');
+        $pvzId = (string) ($q['pvz_id'] ?? '');
+        $qty = (int) ($q['qty'] ?? 0);
+        if ($itemId === '' || $pvzId === '' || $qty < 1) {
+            throw new \App\Shared\Api\ValidationException("Fields 'item_id', 'pvz_id' (uuid) and 'qty' (int >= 1) are required");
+        }
+
+        return $this->supplies->create([
+            'seller_id' => self::DEMO_SELLER_ID,
+            'item_id' => $itemId,
+            'pvz_id' => $pvzId,
+            'qty' => $qty,
+        ], $idempotencyKey);
+    }
+
+    /**
+     * Приёмка завоза ПВЗ. @return array<string,mixed>
+     */
+    public function acceptSupply(string $supplyId, string $idempotencyKey): array
+    {
+        return $this->supplies->accept($supplyId, $idempotencyKey);
+    }
+
+    /**
+     * Список завозов в форме UI: для продавца — свои, для ПВЗ — по pvz_id.
+     * @return array<int,array<string,mixed>>
+     */
+    public function suppliesList(?string $pvzId): array
+    {
+        $sql = 'SELECT s.id, s.item_id, s.pvz_id, s.qty, s.status, s.created_at,
+                       i.title AS item_name, p.name AS pvz_name, sl.name AS seller_name
+                FROM supplies s
+                JOIN items i ON i.id = s.item_id
+                JOIN pvz p ON p.id = s.pvz_id
+                JOIN sellers sl ON sl.id = s.seller_id';
+        $params = [];
+        if ($pvzId !== null) {
+            $sql .= ' WHERE s.pvz_id = ? OR s.seller_id = ?';
+            $params[] = $pvzId;
+            $params[] = self::DEMO_SELLER_ID;
+        } else {
+            $sql .= ' WHERE s.seller_id = ?';
+            $params[] = self::DEMO_SELLER_ID;
+        }
+        $sql .= ' ORDER BY s.created_at DESC LIMIT 50';
+        $stmt = $this->db->get()->prepare($sql);
+        $stmt->execute($params);
+
+        return array_map(fn (array $s): array => [
+            'id' => $s['id'], 'item' => $s['item_name'], 'pvz' => $s['pvz_name'],
+            'seller' => $s['seller_name'], 'qty' => (int) $s['qty'],
+            'status' => $s['status'], 'created' => $this->iso($s['created_at']),
+        ], $stmt->fetchAll(\PDO::FETCH_ASSOC));
+    }
+    /**
+     * Создание товара от демо-продавца: адаптирует payload фронтенда (name/kg/vol/price)
+     * к спецификационному POST /items. sku = название (уникальность через seller+sku в БД).
+     * @param array<string,mixed> $body
+     * @return array<string,mixed>
+     */
+    public function createItem(array $body): array
+    {
+        $name = trim((string) ($body['name'] ?? ''));
+        if ($name === '') {
+            throw new \App\Shared\Api\ValidationException("Field 'name' is required");
+        }
+
+        $id = $this->catalog->createItem(
+            sellerId: self::DEMO_SELLER_ID,
+            sku: $name,
+            title: $name,
+            weightKg: number_format((float) ($body['kg'] ?? 0), 3, '.', ''),
+            volumeM3: number_format((float) ($body['vol'] ?? 0), 4, '.', ''),
+        );
+
+        return ['id' => $id, 'name' => $name];
     }
 }

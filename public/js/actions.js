@@ -28,6 +28,14 @@ function intakePayload() {
   return { item_id: intakeItem, qty };
 }
 
+function supplyPayload() {
+  const { item, supplyQty, supplyPvz } = UI.f;
+  const qty = Number(supplyQty);
+  if (!it(item) || !pv(supplyPvz) || !Number.isSafeInteger(qty) || qty < 1)
+    throw E(422, 'Выберите товар, ПВЗ и укажите целое количество от 1');
+  return { item_id: item, pvz_id: supplyPvz, qty };
+}
+
 async function remoteAction(action, data) {
   if (['role', 'tab', 'sel'].includes(action)) {
     A[action](data);
@@ -43,7 +51,8 @@ async function remoteAction(action, data) {
   const operations = {
     mk: () => ['/orders', orderPayload(), 'Заказ создан'],
     newitem: () => ['/items', itemPayload(), 'Товар создан'],
-    intake: () => [`/pvz/${UI.pvz}/intake`, intakePayload(), 'Партия принята'],
+    supply: () => ['/supplies', supplyPayload(), 'Завоз объявлен'],
+    accept: (d) => [`/supplies/${d.id}/accept`, {}, 'Завоз принят'],
     asm: () => [`/orders/${id}/assemble`, {}, 'Заказ собран'],
     iss: () => [`/orders/${id}/issue`, {}, 'Заказ выдан'],
     ret: () => [`/orders/${id}/return`, {}, 'Возврат оформлен'],
@@ -64,7 +73,7 @@ async function remoteAction(action, data) {
       await request('GET', '/health');
       M('Сервер ответил на проверку состояния', true);
     } else {
-      const [path, payload, message] = operations[action]();
+      const [path, payload, message] = operations[action](data);
       const result = await request('POST', path, payload);
       if (action === 'mk') UI.sel = result?.id ?? result?.order_id ?? result?.data?.id ?? null;
       if (action === 'newitem') UI.itemDraft.name = '';
@@ -131,8 +140,6 @@ const A = {
   },
   reset: () => {
     seed();
-    UI.log = [];
-    UI.used = new Set();
     UI.scen = null;
     M('Данные сброшены к сидам', true);
   },
@@ -169,8 +176,11 @@ const A = {
     res(result, 'Товар создан');
     if (result.status < 300) UI.itemDraft.name = '';
   },
-  intake: () =>
-    res(call('POST', `/pvz/${UI.pvz}/intake`, intakePayload(), uid()), 'Партия принята'),
+  supply: () => {
+    const r = call('POST', '/supplies', supplyPayload(), uid());
+    res(r, 'Завоз объявлен');
+  },
+  accept: (d) => res(call('POST', `/supplies/${d.id}/accept`, {}, uid()), 'Завоз принят, партия на складе'),
   asm: (d) => {
     UI.keys[d.id] = uid();
     res(call('POST', `/orders/${d.id}/assemble`, {}, UI.keys[d.id]), 'Заказ собран');
@@ -262,7 +272,7 @@ document.addEventListener('click', (event) => {
     return;
   }
   try {
-    if (['intake', 'asm', 'iss', 'ret', 'inc'].includes(action)) UI.q = null;
+    if (['supply', 'accept', 'asm', 'iss', 'ret', 'inc'].includes(action)) UI.q = null;
     A[action]?.(button.dataset);
   } catch (error) {
     M(error.code ? `Ошибка ${error.code}: ${error.message}` : error.message, false);

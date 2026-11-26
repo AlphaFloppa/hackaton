@@ -66,6 +66,8 @@ function seed() {
   UI.f = {
     qty: 2,
     intakeQty: 2,
+    supplyQty: 5,
+    supplyPvz: pvz[0].id,
     pref: 'COST',
     item: items[0].id,
     intakeItem: items[0].id,

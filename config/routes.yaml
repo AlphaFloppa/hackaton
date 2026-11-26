@@ -278,3 +278,40 @@ app.supplies_accept:
         id: '[0-9a-f-]{36}'
     options:
         body_spec: ~ (тело не требуется)
+
+# Список завозов в форме UI (фильтр ?pvz_id=; без pvz_id — завозы продавца)
+app.frontend_supplies:
+    path: /api/v1/frontend/supplies
+    controller: App\Controller\FrontendController::supplies
+    methods: GET
+
+# Создание завоза продавцом (идемпотентно)
+app.frontend_supplies_create:
+    path: /api/v1/frontend/supplies
+    controller: App\Controller\FrontendController::createSupply
+    methods: POST
+    options:
+        body_spec:
+            item_id: "uuid (required) — ID товара продавца"
+            pvz_id: "uuid (required) — ID ПВЗ назначения"
+            qty: "int >= 1 (required) — количество единиц"
+
+# Приёмка завоза ПВЗ (идемпотентно, без тела)
+app.frontend_supplies_accept:
+    path: /api/v1/frontend/supplies/{id}/accept
+    controller: App\Controller\FrontendController::acceptSupply
+    methods: POST
+    requirements:
+        id: '[0-9a-f-]{36}'
+
+# Создание товара от демо-продавца (payload фронтенда name/kg/vol/price, идемпотентно)
+app.frontend_items_create:
+    path: /api/v1/frontend/items
+    controller: App\Controller\FrontendController::createItem
+    methods: POST
+    options:
+        body_spec:
+            name: "string (required) — название товара"
+            kg: "float (optional, default 0) — вес, кг"
+            vol: "float (optional, default 0) — объём, м³"
+            price: "float (optional, default 0) — цена, ₽ (в БД не хранится)"

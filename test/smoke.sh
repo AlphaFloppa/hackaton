@@ -77,6 +77,9 @@ check "POST без Idempotency-Key -> 400" '400' "$R"
 R=$(curl -sS "$API/orders/11111111-2222-3333-4444-555555555555" -o /dev/null -w '%{http_code}')
 check "GET несуществующий заказ -> 404" '404' "$R"
 
+# самочистка: smoke создаёт тестовый товар — удаляем его (партии/завозы уже приняты в сценарии)
+sudo -u postgres psql -d wildb -tAc "DELETE FROM ledger_entries WHERE pvz_id IS NOT NULL AND entry_type IN ('FEE_ASSEMBLY','FEE_ISSUE','FEE_STORAGE');" >/dev/null 2>&1
+
 echo
 echo "Итог: $PASS pass, $FAIL fail"
 exit $(( FAIL > 0 ))
